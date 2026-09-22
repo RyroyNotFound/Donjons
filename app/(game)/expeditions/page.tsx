@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useGameData } from "@/lib/game/GameDataProvider";
 import { callApi } from "@/lib/api/client";
 import { ZONES } from "@/lib/game/content/zones";
 import { Card } from "@/components/Card";
-import { Countdown } from "@/components/Countdown";
-import type { ExpeditionLootResult } from "@/lib/game/engine/loot";
 
 export default function ExpeditionsPage() {
+  const router = useRouter();
   const { heroes, expeditions } = useGameData();
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [selectedHeroes, setSelectedHeroes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [lastLoot, setLastLoot] = useState<ExpeditionLootResult | null>(null);
+  const [abandoningId, setAbandoningId] = useState<string | null>(null);
 
   const idleHeroes = heroes.filter((h) => h.status === "idle");
   const zone = selectedZone ? ZONES.find((z) => z.id === selectedZone) : undefined;
@@ -34,25 +35,26 @@ export default function ExpeditionsPage() {
     setError(null);
     setStarting(true);
     try {
-      await callApi("/api/expeditions/start", { zoneId: selectedZone, heroIds: selectedHeroes });
-      setSelectedHeroes([]);
-      setSelectedZone(null);
+      const res = await callApi<{ expeditionId: string }>("/api/expeditions/start", {
+        zoneId: selectedZone,
+        heroIds: selectedHeroes,
+      });
+      router.push(`/expeditions/jouer/${res.expeditionId}`);
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setStarting(false);
     }
   }
 
-  async function claim(expeditionId: string) {
+  async function abandon(expeditionId: string) {
     setError(null);
+    setAbandoningId(expeditionId);
     try {
-      const res = await callApi<{ loot: ExpeditionLootResult }>("/api/expeditions/claim", {
-        expeditionId,
-      });
-      setLastLoot(res.loot);
+      await callApi("/api/expeditions/abandon", { expeditionId });
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setAbandoningId(null);
     }
   }
 
@@ -66,30 +68,30 @@ export default function ExpeditionsPage() {
           <ul className="space-y-2">
             {activeExpeditions.map((exp) => {
               const expZone = ZONES.find((z) => z.id === exp.zoneId)!;
-              const readyAt = exp.startedAt + exp.durationSec * 1000;
               return (
                 <li key={exp.id} className="flex items-center justify-between text-sm">
                   <span className="text-zinc-300">
                     {expZone.name} — {exp.heroIds.length} héros
                   </span>
-                  <ExpeditionAction readyAt={readyAt} onClaim={() => claim(exp.id)} />
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/expeditions/jouer/${exp.id}`}
+                      className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-semibold text-zinc-950 hover:bg-amber-400"
+                    >
+                      Reprendre
+                    </Link>
+                    <button
+                      onClick={() => abandon(exp.id)}
+                      disabled={abandoningId === exp.id}
+                      className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:bg-zinc-800 disabled:opacity-40"
+                    >
+                      {abandoningId === exp.id ? "..." : "Abandonner"}
+                    </button>
+                  </div>
                 </li>
               );
             })}
           </ul>
-        </Card>
-      )}
-
-      {lastLoot && (
-        <Card>
-          <p className="text-sm text-emerald-400">
-            Butin récupéré : {lastLoot.gold} or
-            {Object.entries(lastLoot.resources)
-              .map(([k, v]) => `, ${v} ${k}`)
-              .join("")}
-            {lastLoot.item && `, objet trouvé : ${lastLoot.item.name} (${lastLoot.item.rarity})`}
-            {lastLoot.monsterCaptured && `, monstre capturé !`}
-          </p>
         </Card>
       )}
 
@@ -111,7 +113,7 @@ export default function ExpeditionsPage() {
               <p className="font-semibold text-zinc-50">{z.name}</p>
               <p className="text-sm text-zinc-400">{z.description}</p>
               <p className="mt-1 text-xs text-zinc-500">
-                {Math.round(z.durationSec / 60)} min · {z.heroSlots} héros max · difficulté {z.difficulty}
+                {z.durationSec}s · {z.heroSlots} héros max · difficulté {z.difficulty}
               </p>
             </button>
           </Card>
@@ -146,33 +148,12 @@ export default function ExpeditionsPage() {
             disabled={starting || selectedHeroes.length === 0}
             className="mt-4 rounded-lg bg-amber-500 px-4 py-2 font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {starting ? "Départ..." : "Envoyer l'équipe"}
+            {starting ? "Départ..." : "Entrer dans l'arène"}
           </button>
         </Card>
       )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
-  );
-}
-
-function ExpeditionAction({ readyAt, onClaim }: { readyAt: number; onClaim: () => void }) {
-  const [ready, setReady] = useState(() => Date.now() >= readyAt);
-
-  if (ready) {
-    return (
-      <button
-        onClick={onClaim}
-        className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-500"
-      >
-        Récupérer le butin
-      </button>
-    );
-  }
-
-  return (
-    <span className="text-amber-400">
-      <Countdown readyAt={readyAt} onReady={() => setReady(true)} />
-    </span>
   );
 }

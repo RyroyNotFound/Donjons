@@ -17,7 +17,8 @@ export async function requireUserId(request: Request): Promise<string> {
   try {
     const decoded = await adminAuth.verifyIdToken(token);
     return decoded.uid;
-  } catch {
+  } catch (error) {
+    console.error("verifyIdToken a échoué :", error);
     throw new UnauthorizedError();
   }
 }

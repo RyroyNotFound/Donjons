@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { withAuth } from "@/lib/api/handler";
+import { newHeroData } from "@/lib/game/heroFactory";
+import { STARTING_CRYSTALS } from "@/lib/game/economy";
 import type { Hero, UserProfile } from "@/types/game";
 
 const STARTER_HEROES: { name: string; role: Hero["role"]; subclassId: string }[] = [
@@ -22,6 +24,15 @@ export const POST = withAuth(async (uid) => {
         displayName: `Aventurier-${uid.slice(0, 5)}`,
         gold: STARTING_GOLD,
         resources: { wood: 0, ore: 0, essence: 0 },
+        capturedMonsters: {},
+        crystals: STARTING_CRYSTALS,
+        shards: {},
+        gachaPity: {
+          totalPulls: 0,
+          pullsSinceRare: 0,
+          pullsSinceEpique: 0,
+          pullsSinceLegendaire: 0,
+        },
         createdAt: Date.now(),
       };
       await userRef.set(profile);
@@ -29,20 +40,7 @@ export const POST = withAuth(async (uid) => {
       const batch = adminDb.batch();
       for (const starter of STARTER_HEROES) {
         const heroRef = adminDb.collection("heroes").doc();
-        const hero: Hero = {
-          id: heroRef.id,
-          ownerId: uid,
-          name: starter.name,
-          role: starter.role,
-          subclassId: starter.subclassId,
-          level: 1,
-          xp: 0,
-          talentPoints: 0,
-          talents: {},
-          equipment: {},
-          status: "idle",
-          createdAt: Date.now(),
-        };
+        const hero = newHeroData(heroRef.id, uid, starter.name, starter.role, starter.subclassId);
         batch.set(heroRef, hero);
       }
 
@@ -59,6 +57,34 @@ export const POST = withAuth(async (uid) => {
       });
 
       await batch.commit();
+    } else {
+      // Backfill fields added after this profile was first created.
+      const existing = userSnap.data() as Partial<UserProfile>;
+      const patch: Partial<UserProfile> = {};
+      if (existing.crystals === undefined) patch.crystals = STARTING_CRYSTALS;
+      if (existing.shards === undefined) patch.shards = {};
+      if (existing.gachaPity === undefined) {
+        patch.gachaPity = {
+          totalPulls: 0,
+          pullsSinceRare: 0,
+          pullsSinceEpique: 0,
+          pullsSinceLegendaire: 0,
+        };
+      }
+      if (existing.capturedMonsters === undefined) patch.capturedMonsters = {};
+      if (Object.keys(patch).length > 0) await userRef.update(patch);
+
+      const heroesSnap = await adminDb.collection("heroes").where("ownerId", "==", uid).get();
+      const heroBatch = adminDb.batch();
+      let heroPatches = 0;
+      for (const doc of heroesSnap.docs) {
+        const hero = doc.data() as Partial<Hero>;
+        if (hero.starRank === undefined) {
+          heroBatch.update(doc.ref, { starRank: 1 });
+          heroPatches++;
+        }
+      }
+      if (heroPatches > 0) await heroBatch.commit();
     }
 
     const [profileSnap, heroesSnap] = await Promise.all([

@@ -44,6 +44,7 @@ export const POST = withAuth(async (uid, request) => {
   }));
   const { outcome, rounds } = simulateDungeonAttack(attackers, dungeon, seed);
   const rewards = computeRaidRewards(outcome, defender.gold, defender.resources);
+  const defenseCrystalReward = outcome === "defaite" ? 2 : 0;
 
   const battleRef = adminDb.collection("battleLogs").doc();
   const battleLog: BattleLog = {
@@ -59,9 +60,10 @@ export const POST = withAuth(async (uid, request) => {
   await adminDb.runTransaction(async (tx) => {
     tx.set(battleRef, battleLog);
 
+    const defenderRef = adminDb.collection("users").doc(defenderId);
+
     if (rewards.gold > 0 || Object.keys(rewards.resources).length > 0) {
       const attackerRef = adminDb.collection("users").doc(uid);
-      const defenderRef = adminDb.collection("users").doc(defenderId);
       const attackerSnap = await tx.get(attackerRef);
       const attacker = attackerSnap.data() as UserProfile;
 
@@ -83,6 +85,8 @@ export const POST = withAuth(async (uid, request) => {
         gold: Math.max(0, defender.gold - rewards.gold),
         resources: nextDefenderResources,
       });
+    } else if (defenseCrystalReward > 0) {
+      tx.update(defenderRef, { crystals: defender.crystals + defenseCrystalReward });
     }
   });
 

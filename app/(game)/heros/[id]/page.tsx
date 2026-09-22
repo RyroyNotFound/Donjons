@@ -6,6 +6,7 @@ import { useGameData } from "@/lib/game/GameDataProvider";
 import { getSubclass } from "@/lib/game/content/classes";
 import { resolveHeroStats } from "@/lib/game/engine/stats";
 import { xpToNextLevel } from "@/lib/game/engine/xp";
+import { MAX_STAR_RANK, levelCapForStar, starUpCost } from "@/lib/game/economy";
 import { callApi } from "@/lib/api/client";
 import { Card } from "@/components/Card";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -20,7 +21,7 @@ const SLOT_LABEL: Record<ItemSlot, string> = {
 
 export default function HeroDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { heroes, items } = useGameData();
+  const { heroes, items, profile } = useGameData();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -61,12 +62,28 @@ export default function HeroDetailPage() {
     }
   }
 
+  async function ascend() {
+    setError(null);
+    setBusy(true);
+    try {
+      await callApi(`/api/heroes/${hero!.id}/ascend`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-zinc-50">{hero.name}</h1>
         <p className="text-zinc-400">
-          {subclass.name} · {hero.role} · Niveau {hero.level}
+          {subclass.name} · {hero.role} · Niveau {hero.level}/{levelCapForStar(hero.starRank ?? 1)}
+        </p>
+        <p className="text-amber-400">
+          {"★".repeat(hero.starRank ?? 1)}
+          {"☆".repeat(MAX_STAR_RANK - (hero.starRank ?? 1))}
         </p>
       </div>
 
@@ -122,6 +139,35 @@ export default function HeroDetailPage() {
       </div>
 
       <Card>
+        <h2 className="mb-3 font-semibold text-zinc-50">Ascension</h2>
+        {(hero.starRank ?? 1) >= MAX_STAR_RANK ? (
+          <p className="text-sm text-zinc-400">Rang maximum atteint.</p>
+        ) : (
+          (() => {
+            const cost = starUpCost(hero.starRank ?? 1);
+            const availableShards = profile?.shards?.[hero.subclassId] ?? 0;
+            const canAscend =
+              !busy && availableShards >= cost.shards && (profile?.gold ?? 0) >= cost.gold;
+            return (
+              <div className="flex items-center justify-between text-sm">
+                <p className="text-zinc-400">
+                  Coût : {cost.shards} éclat{cost.shards > 1 ? "s" : ""} de {subclass.name} (
+                  {availableShards} dispo) + {cost.gold} or
+                </p>
+                <button
+                  onClick={ascend}
+                  disabled={!canAscend}
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  Monter en étoile
+                </button>
+              </div>
+            );
+          })()
+        )}
+      </Card>
+
+      <Card>
         <h2 className="mb-1 font-semibold text-zinc-50">Arbre de talents</h2>
         <p className="mb-4 text-sm text-zinc-400">
           Points disponibles : <span className="text-amber-400">{hero.talentPoints}</span>
@@ -131,8 +177,9 @@ export default function HeroDetailPage() {
             const rank = hero.talents[node.id] ?? 0;
             const maxed = rank >= node.maxRank;
             const prereqOk = !node.requires || (hero.talents[node.requires] ?? 0) > 0;
+            const starOk = !node.requiresStarRank || (hero.starRank ?? 1) >= node.requiresStarRank;
             const canAfford = hero.talentPoints >= node.cost;
-            const canSpend = !maxed && prereqOk && canAfford && !busy;
+            const canSpend = !maxed && prereqOk && starOk && canAfford && !busy;
 
             return (
               <div key={node.id} className="rounded-lg border border-zinc-800 p-3">
@@ -145,6 +192,9 @@ export default function HeroDetailPage() {
                 <p className="mt-1 text-xs text-zinc-400">{node.description}</p>
                 {node.requires && !prereqOk && (
                   <p className="mt-1 text-xs text-red-400">Prérequis manquant</p>
+                )}
+                {!starOk && (
+                  <p className="mt-1 text-xs text-red-400">Nécessite {node.requiresStarRank}★</p>
                 )}
                 <button
                   onClick={() => spendTalent(node.id)}

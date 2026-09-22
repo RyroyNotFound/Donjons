@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useGameData } from "@/lib/game/GameDataProvider";
 import { Card } from "@/components/Card";
-import { Countdown } from "@/components/Countdown";
 import { getZone } from "@/lib/game/content/zones";
 
 export default function TableauDeBordPage() {
@@ -51,13 +50,15 @@ export default function TableauDeBordPage() {
           <ul className="space-y-2">
             {activeExpeditions.map((exp) => {
               const zone = getZone(exp.zoneId);
-              const readyAt = exp.startedAt + exp.durationSec * 1000;
               return (
                 <li key={exp.id} className="flex items-center justify-between text-sm">
                   <span className="text-zinc-300">{zone.name}</span>
-                  <span className="text-amber-400">
-                    <Countdown readyAt={readyAt} />
-                  </span>
+                  <Link
+                    href={`/expeditions/jouer/${exp.id}`}
+                    className="text-amber-400 hover:underline"
+                  >
+                    Reprendre →
+                  </Link>
                 </li>
               );
             })}

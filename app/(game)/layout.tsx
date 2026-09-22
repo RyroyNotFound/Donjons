@@ -11,6 +11,7 @@ import { useGameData } from "@/lib/game/GameDataProvider";
 const NAV_LINKS = [
   { href: "/tableau-de-bord", label: "Tableau de bord" },
   { href: "/heros", label: "Héros" },
+  { href: "/gacha", label: "Invocation" },
   { href: "/donjon", label: "Mon donjon" },
   { href: "/donjon/attaquer", label: "Attaquer" },
   { href: "/expeditions", label: "Expéditions" },
@@ -58,6 +59,7 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
             {profile && (
               <div className="flex items-center gap-3">
                 <span title="Or">🪙 {profile.gold}</span>
+                <span title="Cristaux">💎 {profile.crystals ?? 0}</span>
                 <span title="Bois">🪵 {profile.resources.wood ?? 0}</span>
                 <span title="Minerai">⛏️ {profile.resources.ore ?? 0}</span>
                 <span title="Essence">✨ {profile.resources.essence ?? 0}</span>

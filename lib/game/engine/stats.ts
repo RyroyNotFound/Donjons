@@ -1,4 +1,5 @@
 import { getSubclass } from "@/lib/game/content/classes";
+import { starRankStatMultiplier } from "@/lib/game/economy";
 import type { Hero, HeroStats, Item } from "@/types/game";
 
 function addStats(a: HeroStats, b: Partial<HeroStats>): HeroStats {
@@ -36,6 +37,14 @@ export function resolveHeroStats(hero: Hero, equippedItems: Item[]): HeroStats {
     });
   }
 
+  const starMultiplier = starRankStatMultiplier(hero.starRank ?? 1);
+  stats = {
+    hp: stats.hp * starMultiplier,
+    atk: stats.atk * starMultiplier,
+    def: stats.def * starMultiplier,
+    spd: stats.spd * starMultiplier,
+  };
+
   for (const item of equippedItems) {
     stats = addStats(stats, item.statBonus);
   }
@@ -51,4 +60,26 @@ export function resolveHeroStats(hero: Hero, equippedItems: Item[]): HeroStats {
 /** Total talent points a hero should have earned by their current level (1 per level above 1). */
 export function totalTalentPointsForLevel(level: number): number {
   return Math.max(0, level - 1);
+}
+
+/** Aggregates a party of heroes into the single avatar the arena mini-game controls: HP and ATK add up (more heroes = tankier and harder-hitting), SPD averages (movement/attack pace). */
+export function compositePartyStats(statsList: HeroStats[]): HeroStats {
+  if (statsList.length === 0) return { hp: 1, atk: 1, def: 0, spd: 0 };
+
+  const totals = statsList.reduce(
+    (acc, s) => ({
+      hp: acc.hp + s.hp,
+      atk: acc.atk + s.atk,
+      def: acc.def + s.def,
+      spd: acc.spd + s.spd,
+    }),
+    { hp: 0, atk: 0, def: 0, spd: 0 },
+  );
+
+  return {
+    hp: totals.hp,
+    atk: totals.atk,
+    def: Math.round(totals.def / statsList.length),
+    spd: Math.round(totals.spd / statsList.length),
+  };
 }

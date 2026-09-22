@@ -8,3 +8,80 @@
 body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Gacha reveal animations (app/(game)/gacha) */
+@keyframes gacha-portal-spin {
+  from { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.08); }
+  to { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes gacha-pop-in {
+  0% { opacity: 0; transform: scale(0.6) translateY(8px); }
+  80% { opacity: 1; transform: scale(1.06) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes gacha-legendary-glow {
+  0%, 100% { box-shadow: 0 0 6px 0 rgba(245, 158, 11, 0.35); }
+  50% { box-shadow: 0 0 28px 6px rgba(245, 158, 11, 0.75); }
+}
+
+/* Card "flip" via a 2D horizontal squash instead of a 3D rotateY — avoids
+   backface-visibility/preserve-3d cross-browser footguns while still
+   reading as a flip. The mystery face squashes to nothing, the result
+   face un-squashes right after; both end in their final, fully visible
+   state (animation-fill-mode: forwards) so the result is never stuck
+   invisible even if a step gets interrupted. */
+@keyframes gacha-flip-out {
+  0% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(0); opacity: 0; }
+}
+
+@keyframes gacha-flip-in {
+  0% { transform: scaleX(0); opacity: 0; }
+  100% { transform: scaleX(1); opacity: 1; }
+}
+
+.gacha-portal {
+  animation: gacha-portal-spin 1.4s linear infinite;
+}
+
+.gacha-card-wrap {
+  opacity: 0;
+  animation: gacha-pop-in 0.35s ease forwards;
+  animation-delay: var(--delay, 0s);
+}
+
+.gacha-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 110px;
+}
+
+.gacha-card-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.gacha-card-mystery {
+  animation: gacha-flip-out 0.25s ease forwards;
+  animation-delay: calc(var(--delay, 0s) + 0.35s);
+}
+
+.gacha-card-result {
+  opacity: 0;
+  animation: gacha-flip-in 0.3s ease forwards;
+  animation-delay: calc(var(--delay, 0s) + 0.6s);
+}
+
+.gacha-card-legendary {
+  animation: gacha-legendary-glow 1.6s ease-in-out infinite;
+}

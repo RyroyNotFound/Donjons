@@ -25,7 +25,15 @@ export default function HerosPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-zinc-50">Vos héros</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-zinc-50">Vos héros</h1>
+        <Link
+          href="/gacha"
+          className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
+        >
+          + Invocation
+        </Link>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {heroes.map((hero) => {
           const subclass = getSubclass(hero.subclassId);
@@ -45,7 +53,11 @@ export default function HerosPage() {
                 <p className={`text-sm ${ROLE_COLOR[hero.role]}`}>
                   {subclass.name} · {hero.role}
                 </p>
-                <p className="mt-1 text-sm text-zinc-400">Niveau {hero.level}</p>
+                <p className="mt-1 text-sm text-amber-400">
+                  {"★".repeat(hero.starRank ?? 1)}
+                  {"☆".repeat(5 - (hero.starRank ?? 1))}
+                </p>
+                <p className="text-sm text-zinc-400">Niveau {hero.level}</p>
                 <div className="mt-2">
                   <ProgressBar value={hero.xp} max={xpToNextLevel(hero.level)} />
                 </div>

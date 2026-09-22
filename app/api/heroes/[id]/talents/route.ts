@@ -33,6 +33,9 @@ export const POST = withAuth<RouteContext>(async (uid, request, { params }) => {
   if (node.requires && !(hero.talents[node.requires] > 0)) {
     throw new GameError("Prérequis manquant");
   }
+  if (node.requiresStarRank && (hero.starRank ?? 1) < node.requiresStarRank) {
+    throw new GameError(`Nécessite ${node.requiresStarRank}★`);
+  }
 
   const updatedTalents = { ...hero.talents, [nodeId]: currentRank + 1 };
   const updatedPoints = hero.talentPoints - node.cost;
