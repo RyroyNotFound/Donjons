@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// Toutes les mutations de jeu (or, XP, loot, combat...) passent par les routes
+// API du serveur avec firebase-admin, qui ignore ces règles. Le client ne peut
+// donc que LIRE ses propres données ; aucune écriture directe n'est autorisée
+// depuis le navigateur, ce qui empêche de truquer son état de jeu.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(ownerId) {
+      return request.auth != null && request.auth.uid == ownerId;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    match /heroes/{heroId} {
+      allow read: if isOwner(resource.data.ownerId);
+      allow write: if false;
+    }
+
+    match /items/{itemId} {
+      allow read: if isOwner(resource.data.ownerId);
+      allow write: if false;
+    }
+
+    match /dungeons/{uid} {
+      // Un donjon doit pouvoir être lu par un attaquant potentiel avant de
+      // décider d'attaquer : lecture ouverte aux utilisateurs connectés,
+      // écriture uniquement via le serveur.
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /expeditions/{expeditionId} {
+      allow read: if isOwner(resource.data.ownerId);
+      allow write: if false;
+    }
+
+    match /battleLogs/{battleId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == resource.data.attackerId ||
+         request.auth.uid == resource.data.defenderId);
+      allow write: if false;
+    }
+  }
+}
