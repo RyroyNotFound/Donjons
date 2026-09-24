@@ -1,7 +1,7 @@
 import { Badge } from "@/components/Badge";
 import { RARITY_BADGE, RARITY_LABEL } from "@/lib/ui/rarity";
 import { getAffix } from "@/lib/game/content/affixes";
-import { itemTotalStats } from "@/lib/game/engine/items";
+import { enhancedLine, ENHANCE_BONUS_PER_LEVEL, itemTotalStats } from "@/lib/game/engine/items";
 import { formatStatBonus, ITEM_SLOT_LABEL } from "@/lib/game/statFormat";
 import type { Item } from "@/types/game";
 
@@ -10,10 +10,16 @@ export function ItemCard({
   item,
   equippedByName,
   children,
+  onRerollAffix,
+  rerollLabel,
 }: {
   item: Pick<Item, "name" | "rarity" | "slot" | "tier" | "statBonus" | "affixes" | "enhanceLevel">;
   equippedByName?: string;
   children?: React.ReactNode;
+  /** When set, each affix line gets a reroll button (forge workshop). */
+  onRerollAffix?: (affixIndex: number) => void;
+  /** Cost/tooltip text for those buttons; absent = disabled. */
+  rerollLabel?: string;
 }) {
   const level = item.enhanceLevel ?? 0;
   return (
@@ -28,12 +34,30 @@ export function ItemCard({
         <span>· Palier {item.tier ?? 1}</span>
         {equippedByName && <span className="text-emerald-400">· Équipé par {equippedByName}</span>}
       </div>
-      <p className="mt-2 text-xs font-medium text-amber-300">{formatStatBonus(itemTotalStats(item))}</p>
+      <p className="mt-2 text-xs font-medium text-amber-300">Total : {formatStatBonus(itemTotalStats(item))}</p>
       <ul className="mt-1 space-y-0.5 text-xs text-slate-400">
-        <li>Base : {formatStatBonus(item.statBonus)}</li>
+        {level > 0 && (
+          <li className="text-amber-300/70">
+            Amélioration +{level} : +{Math.round(level * ENHANCE_BONUS_PER_LEVEL * 100)}% sur chaque ligne (valeurs ci-dessous)
+          </li>
+        )}
+        <li>Base : {formatStatBonus(enhancedLine(item.statBonus, level))}</li>
         {(item.affixes ?? []).map((affix, i) => (
-          <li key={`${affix.affixId}-${i}`}>
-            ◆ {getAffix(affix.affixId)?.suffix ?? "Affixe"} : {formatStatBonus(affix.statBonus)}
+          <li key={`${affix.affixId}-${i}`} className="flex items-center justify-between gap-2">
+            <span>
+              ◆ {getAffix(affix.affixId)?.suffix ?? "Affixe"} : {formatStatBonus(enhancedLine(affix.statBonus, level))}
+            </span>
+            {onRerollAffix && (
+              <button
+                type="button"
+                title={rerollLabel ? `Réforger cette ligne (${rerollLabel})` : "Pas assez de ressources"}
+                disabled={!rerollLabel}
+                onClick={() => onRerollAffix(i)}
+                className="shrink-0 rounded border border-white/15 px-1.5 py-0.5 text-[11px] text-slate-300 transition hover:border-amber-400/60 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ↻ Réforger
+              </button>
+            )}
           </li>
         ))}
       </ul>

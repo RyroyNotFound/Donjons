@@ -43,7 +43,7 @@ export const CRAFT_RARITY_WEIGHTS: Record<number, Record<ItemRarity, number>> = 
 
 export const MAX_ENHANCE_LEVEL = 10;
 /** Each enhancement level multiplies the item's positive stats by this much more. */
-export const ENHANCE_BONUS_PER_LEVEL = 0.08;
+export const ENHANCE_BONUS_PER_LEVEL = 0.15;
 
 
 function rarityIndex(rarity: ItemRarity): number {
@@ -124,6 +124,18 @@ export function rollItem(
 
 export function enhanceMultiplier(enhanceLevel: number | undefined): number {
   return 1 + (enhanceLevel ?? 0) * ENHANCE_BONUS_PER_LEVEL;
+}
+
+/** One stat line (base or affix) as it actually counts: positive values boosted by enhancement. */
+export function enhancedLine(stats: Partial<HeroStats>, enhanceLevel: number | undefined): Partial<HeroStats> {
+  const multiplier = enhanceMultiplier(enhanceLevel);
+  const out: Partial<HeroStats> = {};
+  for (const stat of STAT_KEYS) {
+    const value = stats[stat];
+    if (!value) continue;
+    out[stat] = Math.round(value > 0 ? value * multiplier : value);
+  }
+  return out;
 }
 
 /** An item's total stat contribution: base + affixes, with positive values boosted by enhancement. */

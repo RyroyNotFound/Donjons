@@ -20,7 +20,7 @@ const MIN_RUN_MS = 2000;
 /** Wall-clock slack when checking the reported run time (network, tab switching). */
 const WALL_CLOCK_SLACK_SEC = 3;
 /** First victory of the (UTC) day in each zone, whatever the difficulty. */
-const DAILY_BONUS = { crystals: 2, rankTokens: 1 };
+const DAILY_BONUS = { crystals: 3, rankTokens: 1 };
 
 function utcDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
@@ -60,7 +60,16 @@ export const POST = withAuth(async (uid, request) => {
 
   const difficulty = getDifficulty(expedition.difficulty);
   const baseZone = getZone(expedition.zoneId);
-  const zone = zoneAtDifficulty(baseZone, difficulty.id);
+  const scaledZone = zoneAtDifficulty(baseZone, difficulty.id);
+  // Expeditions started before runs were lengthened stored their shorter duration: judge them by it.
+  const zone =
+    expedition.durationSec < scaledZone.durationSec
+      ? {
+          ...scaledZone,
+          durationSec: expedition.durationSec,
+          boss: { ...scaledZone.boss, spawnAtSec: Math.min(scaledZone.boss.spawnAtSec, expedition.durationSec - 20) },
+        }
+      : scaledZone;
   const run = sanitizeResult(result, zone, wallMs / 1000, expedition.heroIds.length);
   const stars = runStars(run);
   const performance = performanceFactor(run, zone, stars);
@@ -99,7 +108,8 @@ export const POST = withAuth(async (uid, request) => {
     if (dailyBonus) records[zone.id] = { ...baseRecord, dailyBonusDay: today };
 
     const crystalsEarned =
-      (run.survived ? 1 + Math.floor(zone.difficulty / 25) + difficulty.crystalBonus : 0) +
+      // Per victory: 2..5 by zone (runs are 90-120 s long), +1 for killing the boss.
+      (run.survived ? 2 + Math.floor(zone.difficulty / 20) + difficulty.crystalBonus + (run.bossKilled ? 1 : 0) : 0) +
       (firstClear ? difficulty.firstClear.crystals : 0) +
       (firstThreeStars ? difficulty.firstThreeStars.crystals : 0) +
       (dailyBonus ? DAILY_BONUS.crystals : 0);

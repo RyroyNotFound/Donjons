@@ -32,7 +32,7 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
       { row: 2, col: 1, type: "monster", monsterRefIds: ["gobelin-eclaireur"] },
       { row: 2, col: 2, type: "treasure" },
     ],
-    loot: { gold: 40, resources: { wood: 5 } },
+    loot: { gold: 160, resources: { wood: 20 } },
   },
   {
     id: "toxic-cave",
@@ -48,7 +48,7 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
       { row: 3, col: 2, type: "monster", monsterRefIds: ["gobelin-eclaireur", "gobelin-eclaireur"] },
       { row: 2, col: 3, type: "treasure" },
     ],
-    loot: { gold: 80, resources: { wood: 8, ore: 8 } },
+    loot: { gold: 320, resources: { wood: 32, ore: 32 } },
   },
   {
     id: "stone-golem-vault",
@@ -67,7 +67,7 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
       { row: 2, col: 3, type: "monster", monsterRefIds: ["golem-de-pierre", "golem-de-pierre"] },
       { row: 2, col: 4, type: "treasure" },
     ],
-    loot: { gold: 150, resources: { wood: 12, ore: 12, essence: 6 } },
+    loot: { gold: 600, resources: { wood: 48, ore: 48, essence: 24 } },
   },
   {
     id: "shadow-lord-keep",
@@ -86,7 +86,7 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
       { row: 1, col: 4, type: "treasure" },
       { row: 3, col: 4, type: "treasure" },
     ],
-    loot: { gold: 300, resources: { wood: 20, ore: 20, essence: 20 } },
+    loot: { gold: 1200, resources: { wood: 80, ore: 80, essence: 80 } },
   },
   {
     id: "trapped-sanctum",
@@ -105,7 +105,7 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
       { row: 2, col: 4, type: "trap", trapIds: ["glyphe-sacre", "voile-d-ombre", "runes-explosives", "fosse-a-pieux"] },
       { row: 1, col: 4, type: "treasure" },
     ],
-    loot: { gold: 450, resources: { wood: 30, ore: 30, essence: 30 } },
+    loot: { gold: 1800, resources: { wood: 120, ore: 120, essence: 120 } },
   },
 ];
 

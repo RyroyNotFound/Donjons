@@ -8,10 +8,17 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-/** Rerolls all of an item's affixes (same count, new lines and values). Base stats, rarity and
- *  enhancement level are kept. */
-export const POST = withAuth<RouteContext>(async (uid, _request, { params }) => {
+interface Body {
+  /** Index of the one affix line to reroll; the others stay locked. Absent = reroll every line
+   *  (what the forge did before targeted rerolls existed). */
+  affixIndex?: number;
+}
+
+/** Rerolls one of an item's affix lines (Diablo-style enchanting: the other lines are kept and
+ *  can't come back as the new one). Base stats, rarity and enhancement level never change. */
+export const POST = withAuth<RouteContext>(async (uid, request, { params }) => {
   const { id: itemId } = await params;
+  const { affixIndex } = ((await request.json().catch(() => ({}))) ?? {}) as Body;
 
   const item = await adminDb.runTransaction(async (tx) => {
     const { item, itemRef, user, userRef } = await getOwnedItemInTx(tx, uid, itemId);
@@ -24,7 +31,18 @@ export const POST = withAuth<RouteContext>(async (uid, _request, { params }) => 
     if (shards < cost.shards) throw new GameError(`Éclats de forge insuffisants (${cost.shards} requis)`);
 
     const baseName = item.baseName ?? item.name;
-    const affixes = rollAffixes(Math.random, item.slot, item.tier ?? 1, currentAffixes.length);
+    let affixes;
+    if (affixIndex === undefined) {
+      affixes = rollAffixes(Math.random, item.slot, item.tier ?? 1, currentAffixes.length);
+    } else {
+      if (!Number.isInteger(affixIndex) || affixIndex < 0 || affixIndex >= currentAffixes.length) {
+        throw new GameError("Ligne d'affixe inconnue");
+      }
+      const locked = currentAffixes.filter((_, i) => i !== affixIndex).map((a) => a.affixId);
+      const [rolled] = rollAffixes(Math.random, item.slot, item.tier ?? 1, 1, locked);
+      if (!rolled) throw new GameError("Aucun autre affixe possible pour cet objet");
+      affixes = currentAffixes.map((a, i) => (i === affixIndex ? rolled : a));
+    }
     const name = itemDisplayName(baseName, affixes);
 
     tx.update(userRef, { gold: user.gold - cost.gold, forgeShards: shards - cost.shards });

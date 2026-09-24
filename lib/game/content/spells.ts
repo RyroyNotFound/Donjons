@@ -27,7 +27,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Coup fulgurant",
     description: "Frappe avec une force redoublée les ennemis déjà affaiblis.",
     raidEffectTag: "execute",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "execute",
     element: "foudre",
   },
   {
@@ -70,7 +70,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Œil perçant",
     description: "Vise la moindre faiblesse pour achever les blessés.",
     raidEffectTag: "execute",
-    arenaAbilityTag: "multishot",
+    arenaAbilityTag: "execute",
     element: "glace",
   },
   {
@@ -79,7 +79,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Tir à bout portant",
     description: "Un tir qui traverse les défenses de plein fouet.",
     raidEffectTag: "pierce",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "chain",
     element: "foudre",
   },
   {
@@ -96,7 +96,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Volée empoisonnée",
     description: "Chaque flèche empoisonne un peu plus la plaie.",
     raidEffectTag: "poison",
-    arenaAbilityTag: "multishot",
+    arenaAbilityTag: "venom",
     element: "ombre",
   },
   // --- Prêtre ---
@@ -124,7 +124,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Châtiment sacré",
     description: "Une lumière implacable qui achève les affaiblis.",
     raidEffectTag: "execute",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "meteor",
     element: "sacre",
   },
   {
@@ -141,7 +141,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Zèle dévot",
     description: "La ferveur étourdit la cible frappée.",
     raidEffectTag: "stun",
-    arenaAbilityTag: "haste",
+    arenaAbilityTag: "dmgbuff",
     element: "sacre",
   },
   // --- Druide ---
@@ -159,7 +159,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Griffe naturelle",
     description: "Une morsure qui infecte durablement la plaie.",
     raidEffectTag: "poison",
-    arenaAbilityTag: "lifesteal",
+    arenaAbilityTag: "venom",
     element: "ombre",
   },
   {
@@ -168,7 +168,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Racines épaisses",
     description: "Emprisonne la cible frappée dans les racines.",
     raidEffectTag: "stun",
-    arenaAbilityTag: "haste",
+    arenaAbilityTag: "nova",
     element: "glace",
   },
   {
@@ -177,7 +177,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Métamorphose bestiale",
     description: "La forme animale fond sur les proies affaiblies.",
     raidEffectTag: "execute",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "lifesteal",
     element: "foudre",
   },
   {
@@ -195,7 +195,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Bénédiction du rempart",
     description: "Une garde solide qui absorbe le prochain coup reçu.",
     raidEffectTag: "shield",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "barrier",
     element: "sacre",
   },
   {
@@ -204,7 +204,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Jugement",
     description: "Juge et châtie sans pitié les ennemis affaiblis.",
     raidEffectTag: "execute",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "meteor",
     element: "sacre",
   },
   {
@@ -213,7 +213,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Bouclier sacré",
     description: "Se protège avant l'assaut suivant.",
     raidEffectTag: "shield",
-    arenaAbilityTag: "haste",
+    arenaAbilityTag: "barrier",
     element: "sacre",
   },
   {
@@ -231,7 +231,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Serment inébranlable",
     description: "Une détermination qui impose le silence à la cible.",
     raidEffectTag: "stun",
-    arenaAbilityTag: "haste",
+    arenaAbilityTag: "dmgbuff",
   },
   // --- Colosse ---
   {
@@ -249,7 +249,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Écrasement",
     description: "Un coup massif qui écrase les défenses adverses.",
     raidEffectTag: "pierce",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "meteor",
   },
   {
     id: "spell-peau-de-fer",
@@ -257,7 +257,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Peau de fer",
     description: "Encaisse avant de rendre le coup.",
     raidEffectTag: "shield",
-    arenaAbilityTag: "haste",
+    arenaAbilityTag: "barrier",
   },
   {
     id: "spell-fureur-titanesque",
@@ -265,7 +265,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Fureur titanesque",
     description: "La rage s'acharne sur les cibles les plus faibles.",
     raidEffectTag: "execute",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "execute",
     element: "feu",
   },
   {
@@ -283,7 +283,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Boule de feu",
     description: "Une explosion de flammes qui lèche aussi les ennemis voisins.",
     raidEffectTag: "cleave",
-    arenaAbilityTag: "cleave",
+    arenaAbilityTag: "meteor",
     element: "feu",
   },
   {
@@ -292,7 +292,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Javelot de glace",
     description: "Un trait de givre qui fige la cible sur place.",
     raidEffectTag: "stun",
-    arenaAbilityTag: "multishot",
+    arenaAbilityTag: "nova",
     element: "glace",
   },
   {
@@ -301,7 +301,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Chaîne d'éclairs",
     description: "La foudre rebondit d'une cible à l'autre.",
     raidEffectTag: "cleave",
-    arenaAbilityTag: "multishot",
+    arenaAbilityTag: "chain",
     element: "foudre",
   },
   {
@@ -310,7 +310,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Brûlure arcanique",
     description: "Des flammes qui continuent de ronger la cible.",
     raidEffectTag: "poison",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "venom",
     element: "feu",
   },
   {
@@ -319,7 +319,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Armure de givre",
     description: "Une gangue de glace qui amortit le prochain coup.",
     raidEffectTag: "shield",
-    arenaAbilityTag: "haste",
+    arenaAbilityTag: "nova",
     element: "glace",
   },
   // --- Assassin ---
@@ -329,7 +329,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Lame empoisonnée",
     description: "Un venin d'ombre qui nourrit son porteur.",
     raidEffectTag: "poison",
-    arenaAbilityTag: "lifesteal",
+    arenaAbilityTag: "venom",
     element: "ombre",
   },
   {
@@ -347,7 +347,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Frappe mortelle",
     description: "Achève sans hésiter une cible à bout de souffle.",
     raidEffectTag: "execute",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "execute",
     element: "ombre",
   },
   {
@@ -390,7 +390,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Garde runique",
     description: "Un bouclier de runes qui absorbe les pièges magiques.",
     raidEffectTag: "disarm",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "barrier",
     element: "sacre",
   },
   {
@@ -415,7 +415,7 @@ export const SPELLS: SpellDefinition[] = [
     name: "Œil arcanique",
     description: "Un œil flottant qui explore en avance.",
     raidEffectTag: "scout",
-    arenaAbilityTag: "dmgbuff",
+    arenaAbilityTag: "chain",
     element: "foudre",
   },
 ];

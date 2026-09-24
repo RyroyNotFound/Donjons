@@ -9,6 +9,10 @@ export const GRID_COLS = 5;
 // Middle of the left edge, so a layout can branch up, down and right.
 export const ENTRANCE_CELL = { row: 2, col: 0 };
 
+/** Most heroes one raid can send in — same as the biggest expedition party, and the team size
+ *  the defense level (average of the defender's 4 best heroes) is measured against. */
+export const RAID_PARTY_MAX = 4;
+
 export const MIN_TREASURE_ROOMS = 1;
 /** Monster stat multiplier from a dungeon's defense level (its owner's heroes' level): a level-40
  *  owner's orcs hit like level-40 monsters. Beast Mastery then multiplies on top. */

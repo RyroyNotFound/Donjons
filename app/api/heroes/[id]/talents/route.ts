@@ -12,8 +12,9 @@ interface Body {
   nodeId: string;
 }
 
-/** Spends one talent point on a node, respecting ownership (gacha-unlocked), the active class,
- *  max rank, prerequisites and available points. */
+/** Spends talent points on a node, respecting ownership (gacha-unlocked), the active class,
+ *  max rank, star rank and available points. `requires` is not enforced: owned nodes are random
+ *  gacha pulls, so a missing prerequisite used to lock a node for good. */
 export const POST = withAuth<RouteContext>(async (uid, request, { params }) => {
   const { id: heroId } = await params;
   const { nodeId } = (await request.json()) as Body;

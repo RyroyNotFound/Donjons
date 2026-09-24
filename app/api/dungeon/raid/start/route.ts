@@ -9,7 +9,7 @@ import {
   type GarrisonMember,
 } from "@/lib/game/engine/dungeonRaid";
 import { getBotDungeon, isBotDefenderId } from "@/lib/game/content/botDungeons";
-import { ENTRANCE_CELL } from "@/lib/game/content/dungeon";
+import { ENTRANCE_CELL, RAID_PARTY_MAX } from "@/lib/game/content/dungeon";
 import { getHeroRole, heroElement, primaryRaidEffect } from "@/lib/game/engine/stats";
 import { resistancesOf } from "@/lib/game/engine/elements";
 import {
@@ -37,6 +37,7 @@ export const POST = withAuth(async (uid, request) => {
   const { defenderId, heroIds } = (await request.json()) as Body;
   if (defenderId === uid) throw new GameError("Vous ne pouvez pas attaquer votre propre donjon");
   if (!Array.isArray(heroIds) || heroIds.length === 0) throw new GameError("Sélectionnez au moins un héros");
+  if (heroIds.length > RAID_PARTY_MAX) throw new GameError(`${RAID_PARTY_MAX} héros maximum par raid`);
   if (new Set(heroIds).size !== heroIds.length) throw new GameError("Un même héros ne peut pas être sélectionné deux fois");
 
   const activeSnap = await adminDb

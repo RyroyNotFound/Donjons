@@ -5,7 +5,8 @@ import { adminDb } from "@/lib/firebase/admin";
 import { GameError } from "@/lib/api/handler";
 import { getBotDungeon, isBotDefenderId } from "@/lib/game/content/botDungeons";
 import { finalReward } from "@/lib/game/engine/dungeonRaid";
-import type { BattleReward, DefenseLogEntry, DungeonRaid, RaidStats, ResourceKind, UserProfile } from "@/types/game";
+import { rollConquestBounty, type ConquestBounty } from "@/lib/game/engine/loot";
+import type { BattleReward, DefenseLogEntry, DungeonRaid, Item, RaidStats, ResourceKind, UserProfile } from "@/types/game";
 
 /** Paid to a defender whose dungeon wiped the attacking party, plus gold scaled on the attacker's level. */
 const DEFENSE_WIN_CRYSTALS = 2;
@@ -35,12 +36,18 @@ function rewardTotal(reward: BattleReward): number {
  *  between (double click, two tabs), so a step — and above all a payout — can never apply twice.
  *  When `next` is finished, the same transaction pays out the reward, debits a real defender's
  *  stash, bumps both sides' leaderboard counters, pays raid crystals and frees the attacker's
- *  heroes. Returns the crystals the attacker earned, or undefined while the raid goes on. */
+ *  heroes. A conquest also pays the conquest bounty (item + forge shards, + gold vs a real player —
+ *  never debited from the defender). Returns what the attacker earned, or undefined while the raid goes on. */
+export interface RaidPayout {
+  crystals: number;
+  bounty?: ConquestBounty;
+}
+
 export async function commitRaidStep(
   raidRef: DocumentReference,
   previous: DungeonRaid,
   next: DungeonRaid,
-): Promise<number | undefined> {
+): Promise<RaidPayout | undefined> {
   const finished = next.status !== "in_progress";
   const reward = finalReward(next);
   const raid = next;
@@ -100,8 +107,16 @@ export async function commitRaidStep(
       }
     }
 
+    const bounty = raid.status === "victory" ? rollConquestBounty(raid.seed, defenseLevel, vsBot) : undefined;
+    if (bounty) {
+      const itemRef = adminDb.collection("items").doc();
+      const item: Item = { id: itemRef.id, ownerId: raid.attackerId, ...bounty.item, enhanceLevel: 0 };
+      tx.set(itemRef, item);
+    }
+
     tx.update(attackerRef, {
-      gold: attacker.gold + reward.gold,
+      gold: attacker.gold + reward.gold + (bounty?.gold ?? 0),
+      forgeShards: (attacker.forgeShards ?? 0) + (bounty?.forgeShards ?? 0),
       resources: nextAttackerResources,
       raidStats: attackerStats,
       crystals: attacker.crystals + crystalsEarned,
@@ -148,6 +163,6 @@ export async function commitRaidStep(
     for (const hero of raid.heroes) {
       tx.update(adminDb.collection("heroes").doc(hero.id), { status: "idle" });
     }
-    return crystalsEarned;
+    return { crystals: crystalsEarned, bounty };
   });
 }

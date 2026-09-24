@@ -147,6 +147,8 @@ function draw(
     ctx.fillStyle = "#f87171";
     if (enemy.kind === "elite") ctx.filter = "saturate(1.8) hue-rotate(-25deg) brightness(1.15)";
     if (enemy.kind === "boss") ctx.filter = "saturate(1.5) brightness(1.2) drop-shadow(0 0 6px #ef4444)";
+    if (enemy.slowTimer > 0) ctx.filter = `${ctx.filter === "none" ? "" : ctx.filter + " "}drop-shadow(0 0 4px #7dd3fc)`;
+    if (enemy.poisonTimer > 0) ctx.filter = `${ctx.filter === "none" ? "" : ctx.filter + " "}drop-shadow(0 0 4px #a3e635)`;
     drawSprite(ctx, monsterImages[enemy.refId], state.elapsedSec, enemy.x, enemy.y, enemy.radius * 2.4);
     ctx.filter = "none";
     if (enemy.kind !== "normal" || enemy.hp < enemy.maxHp) {
@@ -177,6 +179,13 @@ function draw(
     drawSprite(ctx, heroImages[hero.role ?? "TANK"], state.elapsedSec, hero.x, hero.y, ARENA_CONSTANTS.HERO_RADIUS * 2.6);
     ctx.filter = "none";
     drawBar(ctx, hero.x, hero.y - 24, 28, hero.hp / hero.maxHp, "#34d399");
+    if (hero.shield > 0) {
+      ctx.strokeStyle = "rgba(147,197,253,0.75)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(hero.x, hero.y, ARENA_CONSTANTS.HERO_RADIUS + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   });
 
   // Projectiles.

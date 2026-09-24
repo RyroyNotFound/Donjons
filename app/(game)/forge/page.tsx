@@ -33,6 +33,7 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
 
 const TIERS = [1, 2, 3];
 type Filter = "all" | "free" | ItemSlot;
+type RecipeFilter = "all" | "affordable" | ItemSlot;
 
 function formatResources(resources: Partial<Record<ResourceKind, number>>): string {
   return Object.entries(resources)
@@ -56,6 +57,7 @@ export default function ForgePage() {
   const [lastCrafted, setLastCrafted] = useState<Item | null>(null);
   const [confirmSalvage, setConfirmSalvage] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [recipeFilter, setRecipeFilter] = useState<RecipeFilter>("all");
 
   const shards = profile?.forgeShards ?? 0;
   const crafted = lastCrafted ? items.find((i) => i.id === lastCrafted.id) : undefined;
@@ -110,10 +112,11 @@ export default function ForgePage() {
         : `Échec de l'amélioration : ${item.name} reste à +${res.enhanceLevel}.`;
     });
 
-  const reforge = (item: Item) =>
+  const reforge = (item: Item, affixIndex: number) =>
     run(`reforge-${item.id}`, async () => {
-      const res = await callApi<{ item: Item }>(`/api/items/${item.id}/reforge`);
-      return `Réforgé : ${res.item.name}.`;
+      const res = await callApi<{ item: Item }>(`/api/items/${item.id}/reforge`, { affixIndex });
+      const line = res.item.affixes?.[affixIndex];
+      return `Réforgé : ${line ? formatStatBonus(line.statBonus) : res.item.name}.`;
     });
 
   const salvage = (item: Item) =>
@@ -133,14 +136,42 @@ export default function ForgePage() {
           action={<ResourcePill icon="ore" label="Éclats de forge" value={shards} colorClassName="text-orange-300" />}
         />
 
-        {TIERS.map((tier) => (
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["all", "Toutes les recettes"],
+              ["affordable", "Réalisables"],
+              ["weapon", ITEM_SLOT_LABEL.weapon],
+              ["armor", ITEM_SLOT_LABEL.armor],
+              ["trinket", ITEM_SLOT_LABEL.trinket],
+            ] as [RecipeFilter, string][]
+          ).map(([value, label]) => (
+            <Chip key={value} selected={recipeFilter === value} onClick={() => setRecipeFilter(value)}>
+              {label}
+            </Chip>
+          ))}
+        </div>
+        <p className="text-xs text-slate-500">
+          ATQ phys. ou mag. ? Un héros ne frappe qu&apos;avec la plus haute des deux : équipez-le dans le type de son
+          attaque principale (voir sa fiche).
+        </p>
+
+        {TIERS.map((tier) => {
+          const recipes = RECIPES.filter(
+            (r) =>
+              r.tier === tier &&
+              (recipeFilter === "all" ||
+                (recipeFilter === "affordable" ? canAfford(r.cost.gold, r.cost.resources) : r.result.slot === recipeFilter)),
+          );
+          if (recipes.length === 0) return null;
+          return (
           <section key={tier} className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="font-display text-lg font-semibold text-slate-50">Palier {tier}</h2>
               <p className="text-xs text-slate-500">{rarityOdds(tier)}</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {RECIPES.filter((r) => r.tier === tier).map((recipe) => (
+              {recipes.map((recipe) => (
                 <Card key={recipe.id}>
                   <p className="font-display font-semibold text-slate-50">{recipe.name}</p>
                   <p className="text-xs uppercase tracking-wide text-slate-500">
@@ -164,7 +195,8 @@ export default function ForgePage() {
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
 
         {crafted && (
           <div className="max-w-sm space-y-1">
@@ -209,7 +241,16 @@ export default function ForgePage() {
               const hasAffixes = (item.affixes ?? []).length > 0;
               return (
                 <li key={item.id} className="flex">
-                    <ItemCard item={item} equippedByName={heroName(item.equippedByHeroId)}>
+                    <ItemCard
+                      item={item}
+                      equippedByName={heroName(item.equippedByHeroId)}
+                      onRerollAffix={hasAffixes ? (i) => reforge(item, i) : undefined}
+                      rerollLabel={
+                        busy === null && canAfford(reforgeInfo.gold, {}, reforgeInfo.shards)
+                          ? `${reforgeInfo.gold} or, ${reforgeInfo.shards} éclats`
+                          : undefined
+                      }
+                    >
                       <div className="space-y-2">
                         {level < MAX_ENHANCE_LEVEL ? (
                           <Button
@@ -225,15 +266,9 @@ export default function ForgePage() {
                           <p className="text-center text-xs text-amber-300">Amélioration maximale</p>
                         )}
                         {hasAffixes && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="w-full"
-                            disabled={busy !== null || !canAfford(reforgeInfo.gold, {}, reforgeInfo.shards)}
-                            onClick={() => reforge(item)}
-                          >
-                            Réforger les affixes ({reforgeInfo.gold} or, {reforgeInfo.shards} éclats)
-                          </Button>
+                          <p className="text-center text-[11px] text-slate-500">
+                            Réforge : {reforgeInfo.gold} or, {reforgeInfo.shards} éclats par ligne (↻) — les autres lignes, la base et l&apos;amélioration sont conservées
+                          </p>
                         )}
                         {!item.equippedByHeroId && (
                           <Button

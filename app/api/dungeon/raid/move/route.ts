@@ -24,7 +24,16 @@ export const POST = withAuth(async (uid, request) => {
   const rng = createRng(`${raid.seed}:${raid.log.length}:${row}:${col}`);
   const { raid: nextRaid, newLog } = applyMove(raid, { row, col }, rng);
 
-  const crystalsEarned = await commitRaidStep(raidRef, raid, nextRaid);
+  const payout = await commitRaidStep(raidRef, raid, nextRaid);
+  const bounty = payout?.bounty;
 
-  return NextResponse.json({ ...toRaidView(nextRaid, newLog), crystalsEarned });
+  return NextResponse.json({
+    ...toRaidView(nextRaid, newLog),
+    crystalsEarned: payout?.crystals,
+    bounty: bounty && {
+      gold: bounty.gold,
+      forgeShards: bounty.forgeShards,
+      item: { name: bounty.item.name, rarity: bounty.item.rarity, slot: bounty.item.slot, tier: bounty.item.tier },
+    },
+  });
 });

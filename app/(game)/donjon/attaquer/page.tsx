@@ -7,6 +7,8 @@ import { callApi } from "@/lib/api/client";
 import { equippedItemsOf, getHeroRole, heroElement, primaryRaidEffect, resolveHeroStats } from "@/lib/game/engine/stats";
 import { ELEMENT_ICON, ELEMENT_LABEL, MAX_TRAP_RESISTANCE, RES_KEY } from "@/lib/game/engine/elements";
 import { tryGetClass } from "@/lib/game/content/classes";
+import { RAID_PARTY_MAX } from "@/lib/game/content/dungeon";
+import { conquestBountyPreview } from "@/lib/game/engine/loot";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
@@ -23,10 +25,15 @@ const DISARM_PREVIEW = { base: 35, bonus: 50 };
 function IntelLine({ target }: { target: DungeonTarget }) {
   const i = target.intel;
   const threats = [...new Set([...i.trapElements, ...i.monsterElements])];
+  const bounty = conquestBountyPreview(i.defenseLevel, target.isBot);
   return (
     <div className="mt-1 space-y-0.5 text-xs text-slate-400">
       <p>
         🛡️ Niveau de défense {i.defenseLevel} · {i.roomCount} salle(s) · {i.treasureRooms} trésor(s)
+      </p>
+      <p className="text-amber-200/80">
+        🏆 Prime de conquête : objet palier {bounty.tier}, {bounty.forgeShards} éclats
+        {bounty.gold > 0 ? `, ${bounty.gold} or` : ""}
       </p>
       <p>
         ⚠️ {i.traps} piège(s) en {i.trapRooms} salle(s) · 👹 {i.monsters} monstre(s){i.hasBoss ? " dont un boss" : ""}
@@ -121,7 +128,11 @@ export default function AttaquerPage() {
 
   function toggleHero(heroId: string) {
     setSelectedHeroes((prev) =>
-      prev.includes(heroId) ? prev.filter((id) => id !== heroId) : [...prev, heroId],
+      prev.includes(heroId)
+        ? prev.filter((id) => id !== heroId)
+        : prev.length >= RAID_PARTY_MAX
+          ? prev
+          : [...prev, heroId],
     );
   }
 
@@ -194,12 +205,21 @@ export default function AttaquerPage() {
 
       {target && (
         <Card textured accent="danger">
-          <h2 className="font-display mb-3 font-semibold text-slate-50">Préparer l&apos;équipe contre {target.displayName}</h2>
+          <h2 className="font-display mb-1 font-semibold text-slate-50">Préparer l&apos;équipe contre {target.displayName}</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Héros choisis : {selectedHeroes.length}/{RAID_PARTY_MAX}
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {idleHeroes.map((hero) => {
               const info = heroInfo.get(hero.id)!;
               return (
-                <Chip key={hero.id} fullWidth selected={selectedHeroes.includes(hero.id)} onClick={() => toggleHero(hero.id)}>
+                <Chip
+                  key={hero.id}
+                  fullWidth
+                  selected={selectedHeroes.includes(hero.id)}
+                  disabled={!selectedHeroes.includes(hero.id) && selectedHeroes.length >= RAID_PARTY_MAX}
+                  onClick={() => toggleHero(hero.id)}
+                >
                   <span className="flex flex-wrap items-center justify-between gap-x-2">
                     <span>
                       {hero.name} <span className="text-xs text-slate-500">Nv.{hero.level} · {tryGetClass(hero.classId)?.name}</span>

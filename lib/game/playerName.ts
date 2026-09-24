@@ -26,3 +26,16 @@ export function playerNameKey(name: string): string {
     .replace(/\p{M}/gu, "")
     .toLowerCase();
 }
+
+export const HERO_NAME_MIN = 2;
+export const HERO_NAME_MAX = 20;
+
+/** Same character rules as player names, but not unique and a bit longer. Shared by the form and the API. */
+export function heroNameError(name: string): string | null {
+  if (name.length < HERO_NAME_MIN) return `Au moins ${HERO_NAME_MIN} caractères.`;
+  if (name.length > HERO_NAME_MAX) return `${HERO_NAME_MAX} caractères maximum.`;
+  if (!PLAYER_NAME_PATTERN.test(name)) {
+    return "Lettres, chiffres, et espace / tiret / apostrophe / _ entre deux mots uniquement.";
+  }
+  return null;
+}

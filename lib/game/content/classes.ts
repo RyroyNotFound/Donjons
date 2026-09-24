@@ -13,7 +13,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Dégâts élevés, montée en puissance rapide.",
     weaknesses: "Peu de survie face aux dégâts de zone.",
     baseStats: { hp: 80, atkPhys: 16, atkMag: 2, defPhys: 6, defMag: 3, spd: 10, crit: 5, critDmg: 50 },
-    statGrowthPerLevel: { hp: 8, atkPhys: 2.2, atkMag: 0.2, defPhys: 0.6, defMag: 0.3, spd: 0.3 },
+    statGrowthPerLevel: { hp: 12, atkPhys: 3.3, atkMag: 0.3, defPhys: 0.9, defMag: 0.45, spd: 0.45 },
   },
   {
     id: "archer",
@@ -23,7 +23,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Grande vitesse d'attaque, très mobile.",
     weaknesses: "Très fragile, meurt vite si submergé.",
     baseStats: { hp: 60, atkPhys: 14, atkMag: 1, defPhys: 3, defMag: 2, spd: 16, crit: 10, critDmg: 50 },
-    statGrowthPerLevel: { hp: 5, atkPhys: 2, atkMag: 0.1, defPhys: 0.3, defMag: 0.2, spd: 0.6, crit: 0.15, critDmg: 0.3 },
+    statGrowthPerLevel: { hp: 7.5, atkPhys: 3, atkMag: 0.15, defPhys: 0.45, defMag: 0.3, spd: 0.9, crit: 0.15, critDmg: 0.3 },
   },
   {
     id: "mage",
@@ -33,7 +33,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Gros dégâts magiques, exploite les faiblesses élémentaires.",
     weaknesses: "Le plus fragile de tous, aucune armure physique.",
     baseStats: { hp: 55, atkPhys: 1, atkMag: 17, defPhys: 2, defMag: 6, spd: 11, crit: 5, critDmg: 60 },
-    statGrowthPerLevel: { hp: 4.5, atkMag: 2.3, defPhys: 0.2, defMag: 0.5, spd: 0.35 },
+    statGrowthPerLevel: { hp: 6.75, atkMag: 3.45, defPhys: 0.3, defMag: 0.75, spd: 0.52 },
   },
   {
     id: "assassin",
@@ -43,7 +43,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Taux et dégâts critiques très élevés, très rapide.",
     weaknesses: "Dégâts irréguliers, peu de défenses.",
     baseStats: { hp: 65, atkPhys: 13, atkMag: 3, defPhys: 4, defMag: 3, spd: 15, crit: 15, critDmg: 80 },
-    statGrowthPerLevel: { hp: 5, atkPhys: 1.8, atkMag: 0.2, defPhys: 0.3, defMag: 0.3, spd: 0.5, crit: 0.25, critDmg: 0.5 },
+    statGrowthPerLevel: { hp: 7.5, atkPhys: 2.7, atkMag: 0.3, defPhys: 0.45, defMag: 0.45, spd: 0.75, crit: 0.25, critDmg: 0.5 },
   },
   {
     id: "pretre",
@@ -53,7 +53,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Soins puissants, bonne survie.",
     weaknesses: "Dégâts infligés très faibles.",
     baseStats: { hp: 70, atkPhys: 1, atkMag: 8, defPhys: 4, defMag: 8, spd: 9, crit: 5, critDmg: 50 },
-    statGrowthPerLevel: { hp: 7, atkPhys: 0.1, atkMag: 1, defPhys: 0.4, defMag: 0.8, spd: 0.3 },
+    statGrowthPerLevel: { hp: 10.5, atkPhys: 0.15, atkMag: 1.5, defPhys: 0.6, defMag: 1.2, spd: 0.45 },
   },
   {
     id: "druide",
@@ -63,7 +63,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Très résistant pour un soigneur, bon en solo.",
     weaknesses: "Soins plus faibles que le Prêtre.",
     baseStats: { hp: 85, atkPhys: 1, atkMag: 6, defPhys: 6, defMag: 7, spd: 8, crit: 5, critDmg: 50 },
-    statGrowthPerLevel: { hp: 9, atkPhys: 0.1, atkMag: 0.6, defPhys: 0.6, defMag: 0.7, spd: 0.25 },
+    statGrowthPerLevel: { hp: 13.5, atkPhys: 0.15, atkMag: 0.9, defPhys: 0.9, defMag: 1.05, spd: 0.38 },
   },
   {
     id: "paladin",
@@ -73,7 +73,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Très résistant, absorbe les dégâts.",
     weaknesses: "Dégâts infligés limités.",
     baseStats: { hp: 120, atkPhys: 8, atkMag: 3, defPhys: 12, defMag: 6, spd: 7, crit: 5, critDmg: 50 },
-    statGrowthPerLevel: { hp: 12, atkPhys: 0.7, atkMag: 0.3, defPhys: 1.3, defMag: 0.6, spd: 0.2 },
+    statGrowthPerLevel: { hp: 18, atkPhys: 1.05, atkMag: 0.45, defPhys: 1.95, defMag: 0.9, spd: 0.3 },
   },
   {
     id: "colosse",
@@ -83,7 +83,7 @@ export const CLASSES: ClassDefinition[] = [
     strengths: "Réservoir de vie énorme, frappe plus fort qu'un tank classique.",
     weaknesses: "Moins bonne mitigation, encaisse plus de dégâts bruts par coup.",
     baseStats: { hp: 150, atkPhys: 12, atkMag: 0, defPhys: 9, defMag: 2, spd: 6, crit: 5, critDmg: 60 },
-    statGrowthPerLevel: { hp: 16, atkPhys: 1.2, atkMag: 0, defPhys: 1, defMag: 0.2, spd: 0.15 },
+    statGrowthPerLevel: { hp: 24, atkPhys: 1.8, atkMag: 0, defPhys: 1.5, defMag: 0.3, spd: 0.22 },
   },
 ];
 

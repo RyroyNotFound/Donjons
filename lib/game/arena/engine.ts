@@ -43,8 +43,21 @@ const HAZARD_RADIUS = 46;
 
 // --- Deterministic spawn schedule (time-only, so the server can bound reported kills) ---
 
+/** Waves grow by one enemy every 3 waves, up to this many extra (longer runs would otherwise
+ *  flood the arena — the time ramp below takes over from there). */
+const MAX_WAVE_GROWTH = 6;
+
 export function waveSize(zone: ZoneDefinition, waveIndex: number): number {
-  return zone.baseWaveSize + Math.floor(waveIndex / 3);
+  return zone.baseWaveSize + Math.min(MAX_WAVE_GROWTH, Math.floor(waveIndex / 3));
+}
+
+/** Monsters spawned later in a run are tougher: +60% HP and damage per minute elapsed
+ *  (the boss gets half of it, on top of its own multipliers). */
+const TIME_RAMP_PER_MIN = 0.6;
+
+export function timeRamp(elapsedSec: number, kind: "normal" | "elite" | "boss" = "normal"): number {
+  const ramp = TIME_RAMP_PER_MIN * (elapsedSec / 60);
+  return 1 + (kind === "boss" ? ramp / 2 : ramp);
 }
 
 function isEliteWave(zone: ZoneDefinition, waveIndex: number): boolean {
@@ -78,7 +91,18 @@ export const ARENA_SPELL_TAGS: Record<ArenaAbilityTag, SpellTagDef> = {
   haste: { label: "Frénésie", icon: "🍃", cooldown: 8, description: "+40% vitesse d'attaque d'équipe (3,5s)" },
   dmgbuff: { label: "Bénédiction", icon: "🛡️", cooldown: 9, description: "+30% dégâts d'équipe (4s)" },
   lifesteal: { label: "Drain", icon: "🩸", cooldown: 3, description: "Frappe la cible proche et soigne le lanceur" },
+  nova: { label: "Nova de givre", icon: "❄️", cooldown: 5, description: "Dégâts autour du lanceur, ralentit les ennemis touchés (2,5s)" },
+  chain: { label: "Arc électrique", icon: "⚡", cooldown: 3.5, description: "Frappe une cible puis rebondit sur 4 ennemis proches" },
+  meteor: { label: "Météore", icon: "☄️", cooldown: 6, description: "Gros dégâts de zone sur le groupe d'ennemis le plus dense" },
+  barrier: { label: "Égide", icon: "🔰", cooldown: 8, description: "Bouclier sur toute l'équipe, qui absorbe les prochains dégâts" },
+  venom: { label: "Nuée toxique", icon: "☠️", cooldown: 5, description: "Empoisonne un groupe d'ennemis (dégâts sur 4s)" },
+  execute: { label: "Coup de grâce", icon: "🗡️", cooldown: 3, description: "Frappe l'ennemi le plus blessé, dégâts doublés sous 35% PV" },
 };
+
+/** Nova slow: enemy speed multiplier while slowed. */
+const NOVA_SLOW = 0.55;
+/** Égide shields stack up to this fraction of each hero's max HP. */
+const BARRIER_CAP = 0.35;
 
 /** Spell matching the hero's class hits harder (same idea as raid combat's RAID_MAGNITUDE bonus). */
 const CLASS_MATCH_BONUS = 1.3;
@@ -143,6 +167,8 @@ export interface ArenaHero {
   attackTimer: number;
   alive: boolean;
   spells: ArenaSpell[];
+  /** Égide absorb pool, drained before HP. */
+  shield: number;
 }
 
 export interface ArenaEnemy {
@@ -165,6 +191,11 @@ export interface ArenaEnemy {
   res: Partial<Record<Element, number>>;
   contactTimer: number;
   shootTimer: number;
+  /** Seconds left under Nova de givre's slow. */
+  slowTimer: number;
+  /** Nuée toxique: seconds left and damage per second (already mitigated). */
+  poisonTimer: number;
+  poisonDps: number;
 }
 
 export interface ArenaProjectile {
@@ -260,7 +291,7 @@ export interface ArenaState {
   outcome: "playing" | "victoire" | "defaite";
 }
 
-const ALL_TAGS: ArenaAbilityTag[] = ["cleave", "multishot", "regen", "haste", "dmgbuff", "lifesteal"];
+const ALL_TAGS = Object.keys(ARENA_SPELL_TAGS) as ArenaAbilityTag[];
 const tagRecord = (value: number) =>
   Object.fromEntries(ALL_TAGS.map((t) => [t, value])) as Record<ArenaAbilityTag, number>;
 
@@ -313,6 +344,7 @@ export function createInitialState(
       attackTimer: 0.3 + slot * 0.15,
       alive: true,
       spells,
+      shield: 0,
     };
   });
 
@@ -369,13 +401,13 @@ export interface UpgradeCard {
 }
 
 const GENERIC_CARDS: UpgradeCard[] = [
-  { id: "force", name: "Force brute", icon: "⚔️", description: "+20% dégâts", maxStacks: 5, apply: (s) => void (s.mods.dmgMul += 0.2) },
-  { id: "cadence", name: "Cadence", icon: "⏱️", description: "+15% vitesse d'attaque", maxStacks: 5, apply: (s) => void (s.mods.atkSpeedMul += 0.15) },
+  { id: "force", name: "Fureur de l'arène", icon: "⚔️", description: "+20% dégâts de toute l'équipe (attaques et sorts)", maxStacks: 5, apply: (s) => void (s.mods.dmgMul += 0.2) },
+  { id: "cadence", name: "Cadence", icon: "⏱️", description: "+15% vitesse des attaques de base", maxStacks: 5, apply: (s) => void (s.mods.atkSpeedMul += 0.15) },
   {
     id: "vitalite",
     name: "Vitalité",
     icon: "❤️",
-    description: "+20% PV max et soigne 20%",
+    description: "+20% PV max, soigne 20% des PV de chaque héros",
     maxStacks: 4,
     apply: (s) => {
       for (const h of s.heroes) {
@@ -385,12 +417,12 @@ const GENERIC_CARDS: UpgradeCard[] = [
       }
     },
   },
-  { id: "celerite", name: "Célérité", icon: "👟", description: "+12% vitesse de déplacement", maxStacks: 3, apply: (s) => void (s.mods.moveMul += 0.12) },
+  { id: "celerite", name: "Pas rapides", icon: "👟", description: "+12% vitesse de déplacement", maxStacks: 3, apply: (s) => void (s.mods.moveMul += 0.12) },
   { id: "aimant", name: "Aimant", icon: "🧲", description: "+50% rayon de ramassage d'XP", maxStacks: 3, apply: (s) => void (s.mods.pickupMul += 0.5) },
-  { id: "multi", name: "Tir multiple", icon: "🎯", description: "+1 projectile par attaque de base", maxStacks: 3, apply: (s) => void (s.mods.extraProjectiles += 1) },
+  { id: "multi", name: "Projectiles jumeaux", icon: "🎯", description: "+1 projectile par attaque de base", maxStacks: 3, apply: (s) => void (s.mods.extraProjectiles += 1) },
   { id: "perforant", name: "Perforation", icon: "📌", description: "Les projectiles traversent +1 ennemi", maxStacks: 3, apply: (s) => void (s.mods.pierce += 1) },
   { id: "peau", name: "Peau de pierre", icon: "🪨", description: "-12% dégâts subis", maxStacks: 4, apply: (s) => void (s.mods.damageTakenMul *= 0.88) },
-  { id: "souffle", name: "Second souffle", icon: "🌬️", description: "Régénère 1,5% PV max/s", maxStacks: 3, apply: (s) => void (s.mods.regenPerSec += 0.015) },
+  { id: "souffle", name: "Second souffle", icon: "🌬️", description: "Régénération : 1,5% des PV max par seconde", maxStacks: 3, apply: (s) => void (s.mods.regenPerSec += 0.015) },
   { id: "critique", name: "Coup critique", icon: "✴️", description: "+10% de chances de coup critique pour toute l'équipe", maxStacks: 4, apply: (s) => void (s.mods.critChance += 0.1) },
   {
     id: "ralliement",
@@ -422,18 +454,39 @@ const GENERIC_CARDS: UpgradeCard[] = [
   },
 ];
 
+/** What each spell's "Maîtrise" level-up card adds on top of +15% power / -10% cooldown. The
+ *  extra is read back in castSpell through spellCardLevel. */
+const SPELL_CARD_BONUS: Record<ArenaAbilityTag, string> = {
+  cleave: "+25% de rayon",
+  multishot: "+3 projectiles par salve",
+  regen: "+25% de soin",
+  haste: "+1,5 s de durée",
+  dmgbuff: "+1,5 s de durée",
+  lifesteal: "soigne 20% de plus des dégâts infligés",
+  nova: "+1 s de ralentissement",
+  chain: "+2 rebonds",
+  meteor: "+25% de rayon",
+  barrier: "bouclier max +10% des PV",
+  venom: "+2 s de poison",
+  execute: "seuil d'exécution +10% PV",
+};
+
+function spellCardLevel(state: ArenaState, tag: ArenaAbilityTag): number {
+  return state.cardStacks[`sort-${tag}`] ?? 0;
+}
+
 function spellCard(tag: ArenaAbilityTag): UpgradeCard {
   const def = ARENA_SPELL_TAGS[tag];
   return {
     id: `sort-${tag}`,
     name: `Maîtrise : ${def.label}`,
     icon: def.icon,
-    description: `${def.label} : +30% puissance, -15% recharge`,
+    description: `${def.label} : ${SPELL_CARD_BONUS[tag]}, +15% puissance, -10% recharge`,
     maxStacks: 3,
     available: (s) => s.heroes.some((h) => h.spells.some((sp) => sp.tag === tag)),
     apply: (s) => {
-      s.mods.spellPower[tag] += 0.3;
-      s.mods.spellCdMul[tag] *= 0.85;
+      s.mods.spellPower[tag] += tag === "regen" ? 0.4 : 0.15;
+      s.mods.spellCdMul[tag] *= 0.9;
     },
   };
 }
@@ -536,7 +589,9 @@ function damageHero(state: ArenaState, hero: ArenaHero, raw: number, type: "phys
 
 /** Final HP loss (already mitigated), with the KO bookkeeping. */
 function loseHp(state: ArenaState, hero: ArenaHero, amount: number) {
-  hero.hp -= amount;
+  const absorbed = Math.min(hero.shield, amount);
+  hero.shield -= absorbed;
+  hero.hp -= amount - absorbed;
   if (hero.hp <= 0) {
     hero.hp = 0;
     hero.alive = false;
@@ -615,7 +670,8 @@ function spawnEnemy(
     y = side === 2 ? 0 : side === 3 ? ARENA_HEIGHT : randomInt(rng, 0, ARENA_HEIGHT);
   }
 
-  const hp = def.stats.hp * 0.35 * scale * tweak.hp * kindHp;
+  const ramp = timeRamp(state.elapsedSec, kind);
+  const hp = def.stats.hp * 0.35 * scale * tweak.hp * kindHp * ramp;
   state.enemies.push({
     id: state.nextId++,
     refId,
@@ -628,7 +684,7 @@ function spawnEnemy(
     hp,
     maxHp: hp,
     speed: (35 + def.stats.spd * 2) * tweak.speed * (kind === "normal" ? 1 : 0.85),
-    contactDamage: Math.max(2, (def.stats.atkPhys + def.stats.atkMag) * 0.4 * scale * kindAtk),
+    contactDamage: Math.max(2, (def.stats.atkPhys + def.stats.atkMag) * 0.4 * scale * kindAtk * ramp),
     atkType: def.stats.atkMag > def.stats.atkPhys ? "mag" : "phys",
     defPhys: def.stats.defPhys * scale,
     defMag: def.stats.defMag * scale,
@@ -636,6 +692,9 @@ function spawnEnemy(
     res: resistancesOf(def.stats),
     contactTimer: 0,
     shootTimer: 1.5 + rng() * 1.5,
+    slowTimer: 0,
+    poisonTimer: 0,
+    poisonDps: 0,
   });
 }
 
@@ -706,9 +765,10 @@ function heroBasicAttack(state: ArenaState, hero: ArenaHero, rng: () => number) 
 
 function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: () => number): boolean {
   const power = spell.power * state.mods.spellPower[spell.tag];
+  const lvl = spellCardLevel(state, spell.tag);
   switch (spell.tag) {
     case "cleave": {
-      const radius = 85;
+      const radius = 85 * (1 + 0.25 * lvl);
       const targets = state.enemies.filter((e) => Math.hypot(e.x - hero.x, e.y - hero.y) - e.radius <= radius);
       if (targets.length === 0) return false;
       for (const enemy of targets) damageEnemy(state, enemy, hero.atk * 1.4 * power, hero.atkType, rng, hero);
@@ -717,8 +777,9 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
     }
     case "multishot": {
       if (!nearestEnemy(state, hero.x, hero.y, 320)) return false;
-      for (let i = 0; i < 8; i++) {
-        fireProjectile(state, hero, (i / 8) * Math.PI * 2, {
+      const count = 8 + 3 * lvl;
+      for (let i = 0; i < count; i++) {
+        fireProjectile(state, hero, (i / count) * Math.PI * 2, {
           damage: hero.atk * 0.7 * power,
           atkType: hero.atkType,
           hostile: false,
@@ -744,14 +805,14 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
     }
     case "haste": {
       if (state.enemies.length === 0) return false;
-      state.buffs.hasteTimer = 3.5;
+      state.buffs.hasteTimer = 3.5 + 1.5 * lvl;
       state.buffs.hasteMag = Math.max(state.buffs.hasteMag, 0.4 * power);
       addEffect(state, { kind: "ring", x: hero.x, y: hero.y, radius: 50, life: 0.4, color: "#67e8f9" });
       return true;
     }
     case "dmgbuff": {
       if (state.enemies.length === 0) return false;
-      state.buffs.dmgTimer = 4;
+      state.buffs.dmgTimer = 4 + 1.5 * lvl;
       state.buffs.dmgMag = Math.max(state.buffs.dmgMag, 0.3 * power);
       addEffect(state, { kind: "ring", x: hero.x, y: hero.y, radius: 60, life: 0.4, color: "#fcd34d" });
       return true;
@@ -760,8 +821,104 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       const target = nearestEnemy(state, hero.x, hero.y, 220);
       if (!target) return false;
       const dealt = damageEnemy(state, target, hero.atk * 1.6 * power, hero.atkType, rng, hero);
-      healHero(state, hero, dealt * 0.5);
+      healHero(state, hero, dealt * (0.5 + 0.2 * lvl));
       addEffect(state, { kind: "beam", x: hero.x, y: hero.y, x2: target.x, y2: target.y, radius: 0, life: 0.3, color: "#f87171" });
+      return true;
+    }
+    case "nova": {
+      const radius = 110;
+      const targets = state.enemies.filter((e) => Math.hypot(e.x - hero.x, e.y - hero.y) - e.radius <= radius);
+      if (targets.length === 0) return false;
+      for (const enemy of targets) {
+        damageEnemy(state, enemy, hero.atk * 0.9 * power, hero.atkType, rng, hero);
+        enemy.slowTimer = 2.5 + lvl;
+      }
+      addEffect(state, { kind: "ring", x: hero.x, y: hero.y, radius, life: 0.45, color: "#7dd3fc" });
+      return true;
+    }
+    case "chain": {
+      let current = nearestEnemy(state, hero.x, hero.y, 260);
+      if (!current) return false;
+      const hit = new Set<number>();
+      let from = { x: hero.x, y: hero.y };
+      let damage = hero.atk * 1.2 * power;
+      for (let bounce = 0; bounce < 5 + 2 * lvl && current; bounce++) {
+        damageEnemy(state, current, damage, hero.atkType, rng, hero);
+        hit.add(current.id);
+        addEffect(state, { kind: "beam", x: from.x, y: from.y, x2: current.x, y2: current.y, radius: 0, life: 0.25, color: "#fde047" });
+        from = { x: current.x, y: current.y };
+        damage *= 0.85;
+        let next: ArenaEnemy | undefined;
+        let best = 150;
+        for (const e of state.enemies) {
+          if (e.hp <= 0 || hit.has(e.id)) continue;
+          const d = Math.hypot(e.x - from.x, e.y - from.y);
+          if (d < best) {
+            best = d;
+            next = e;
+          }
+        }
+        current = next;
+      }
+      return true;
+    }
+    case "meteor": {
+      const blast = 75 * (1 + 0.25 * lvl);
+      let center: ArenaEnemy | undefined;
+      let bestCount = 0;
+      for (const e of state.enemies) {
+        if (e.hp <= 0 || Math.hypot(e.x - hero.x, e.y - hero.y) > 380) continue;
+        const count = state.enemies.filter((o) => Math.hypot(o.x - e.x, o.y - e.y) <= blast).length;
+        if (count > bestCount) {
+          bestCount = count;
+          center = e;
+        }
+      }
+      if (!center) return false;
+      const { x, y } = center;
+      for (const enemy of state.enemies) {
+        if (Math.hypot(enemy.x - x, enemy.y - y) - enemy.radius <= blast) {
+          damageEnemy(state, enemy, hero.atk * 2 * power, hero.atkType, rng, hero);
+        }
+      }
+      addEffect(state, { kind: "ring", x, y, radius: blast, life: 0.5, color: "#f97316" });
+      return true;
+    }
+    case "barrier": {
+      if (state.enemies.length === 0) return false;
+      const party = aliveHeroes(state);
+      const cap = BARRIER_CAP + 0.1 * lvl;
+      if (party.every((h) => h.shield >= h.maxHp * cap * 0.9)) return false;
+      for (const h of party) {
+        h.shield = Math.min(h.maxHp * cap, h.shield + (5 + h.maxHp * 0.12 + hero.atk * 0.3) * power);
+        addEffect(state, { kind: "ring", x: h.x, y: h.y, radius: 22, life: 0.4, color: "#93c5fd" });
+      }
+      return true;
+    }
+    case "venom": {
+      const target = nearestEnemy(state, hero.x, hero.y, 300);
+      if (!target) return false;
+      const radius = 90;
+      const dps = hero.atk * 0.55 * power * state.mods.dmgMul;
+      for (const enemy of state.enemies) {
+        if (Math.hypot(enemy.x - target.x, enemy.y - target.y) > radius) continue;
+        const elemMul = hero.element ? elementalMultiplier(hero.element, enemy.res[hero.element]) : 1;
+        enemy.poisonDps = Math.max(enemy.poisonTimer > 0 ? enemy.poisonDps : 0, dps * elemMul);
+        enemy.poisonTimer = 4 + 2 * lvl;
+      }
+      addEffect(state, { kind: "ring", x: target.x, y: target.y, radius, life: 0.6, color: "#a3e635" });
+      return true;
+    }
+    case "execute": {
+      let target: ArenaEnemy | undefined;
+      for (const e of state.enemies) {
+        if (e.hp <= 0 || Math.hypot(e.x - hero.x, e.y - hero.y) - e.radius > 260) continue;
+        if (!target || e.hp / e.maxHp < target.hp / target.maxHp) target = e;
+      }
+      if (!target) return false;
+      const finisher = target.hp / target.maxHp < 0.35 + 0.1 * lvl ? 2 : 1;
+      damageEnemy(state, target, hero.atk * 1.5 * finisher * power, hero.atkType, rng, hero);
+      addEffect(state, { kind: "beam", x: hero.x, y: hero.y, x2: target.x, y2: target.y, radius: 0, life: 0.25, color: "#e2e8f0" });
       return true;
     }
   }
@@ -849,8 +1006,14 @@ export function stepArena(
     if (enemy.behavior === "ranged" && enemy.kind !== "boss") {
       dir = targetDist > 160 ? 1 : targetDist < 110 ? -1 : 0;
     }
-    enemy.x = Math.min(ARENA_WIDTH, Math.max(0, enemy.x + dx * enemy.speed * dir * dt));
-    enemy.y = Math.min(ARENA_HEIGHT, Math.max(0, enemy.y + dy * enemy.speed * dir * dt));
+    const speed = enemy.speed * (enemy.slowTimer > 0 ? NOVA_SLOW : 1);
+    enemy.x = Math.min(ARENA_WIDTH, Math.max(0, enemy.x + dx * speed * dir * dt));
+    enemy.y = Math.min(ARENA_HEIGHT, Math.max(0, enemy.y + dy * speed * dir * dt));
+    if (enemy.slowTimer > 0) enemy.slowTimer -= dt;
+    if (enemy.poisonTimer > 0) {
+      enemy.poisonTimer -= dt;
+      enemy.hp -= enemy.poisonDps * dt;
+    }
 
     enemy.contactTimer -= dt;
     if (enemy.contactTimer <= 0) {

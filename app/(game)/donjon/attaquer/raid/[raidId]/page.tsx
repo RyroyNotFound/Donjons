@@ -8,6 +8,8 @@ import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
+import { Badge } from "@/components/Badge";
+import { RARITY_LABEL } from "@/lib/ui/rarity";
 import { EmptyState } from "@/components/EmptyState";
 import { PageTransition } from "@/components/PageTransition";
 import { RaidMap } from "@/components/dungeon/RaidMap";
@@ -20,6 +22,23 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
   ore: "Minerai",
   essence: "Essence",
 };
+
+function BountyLine({ bounty }: { bounty: NonNullable<RaidView["bounty"]> }) {
+  return (
+    <div className="text-sm">
+      <p className="font-semibold text-amber-200">Prime de conquête</p>
+      <p className="text-slate-300">
+        {bounty.gold > 0 && `${bounty.gold} or · `}
+        {bounty.forgeShards} éclats de forge
+      </p>
+      <p className="mt-1">
+        <Badge tone={bounty.item.rarity}>
+          {RARITY_LABEL[bounty.item.rarity]} · {bounty.item.name} (palier {bounty.item.tier ?? 1})
+        </Badge>
+      </p>
+    </div>
+  );
+}
 
 function formatLoot(loot: RaidView["bankedLoot"]): string {
   const parts = [`${loot.gold} or`];
@@ -117,6 +136,7 @@ export default function RaidPage() {
                   Butin final : {formatLoot(view.bankedLoot)}
                 </p>
                 {!!view.crystalsEarned && <p className="text-sm font-semibold text-sky-300">💎 +{view.crystalsEarned} cristaux</p>}
+                {view.bounty && <BountyLine bounty={view.bounty} />}
                 <Button
                   onClick={() => router.push("/donjon/attaquer", { transitionTypes: ["nav-back"] })}
                   className="mt-2 w-full"
@@ -181,6 +201,7 @@ export default function RaidPage() {
             {view.status === "wiped" ? "Aucun butin récupéré." : `Butin final : ${formatLoot(view.bankedLoot)}`}
           </p>
           {!!view.crystalsEarned && <p className="text-sm text-sky-300">💎 +{view.crystalsEarned} cristaux</p>}
+          {view.bounty && <BountyLine bounty={view.bounty} />}
           <Link
             href="/donjon/attaquer"
             transitionTypes={["nav-back"]}

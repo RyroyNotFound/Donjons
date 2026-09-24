@@ -16,6 +16,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone } from "@/components/Badge";
 import { Button, buttonClasses } from "@/components/Button";
 import { ROLE_TEXT_COLOR, ROLE_LABEL } from "@/lib/ui/role";
+import { RARITY_LABEL } from "@/lib/ui/rarity";
+import { ITEM_SLOT_LABEL } from "@/lib/game/statFormat";
 import { PageTransition } from "@/components/PageTransition";
 import { SpriteAnimation } from "@/components/SpriteAnimation";
 import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
@@ -142,6 +144,20 @@ export default function HerosPage() {
                     <span>DEFp {stats.defPhys}</span>
                     <span>DEFm {stats.defMag}</span>
                   </div>
+                  {equippedItems.length > 0 ? (
+                    <ul className="mt-2 flex flex-wrap gap-1">
+                      {equippedItems.map((item) => (
+                        <li key={item.id} title={`${ITEM_SLOT_LABEL[item.slot]} · ${RARITY_LABEL[item.rarity]}`}>
+                          <Badge tone={item.rarity}>
+                            {item.name}
+                            {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""}
+                          </Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-600">Aucun équipement</p>
+                  )}
                 </Card>
               </Link>
             </div>

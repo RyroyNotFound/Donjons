@@ -78,15 +78,23 @@ export default function ExpeditionsPage() {
   const idleHeroes = heroes
     .filter((h) => h.status === "idle")
     .sort((a, b) => (powerByHero.get(b.id) ?? 0) - (powerByHero.get(a.id) ?? 0));
-  const teamPower = selectedHeroes.reduce((sum, id) => sum + (powerByHero.get(id) ?? 0), 0);
+  const teamPower = selectedHeroes
+    .filter((id) => idleHeroes.some((h) => h.id === id))
+    .reduce((sum, id) => sum + (powerByHero.get(id) ?? 0), 0);
 
   function selectZone(z: ZoneDefinition) {
     setSelectedZone(z.id);
     // Default to the hardest difficulty open on this zone.
     const open = DIFFICULTIES.filter((d) => isDifficultyUnlocked(z.id, d.id, records));
     setDifficulty(open[open.length - 1]?.id ?? "normal");
-    // Pre-fill with the strongest available heroes — one click to launch.
-    setSelectedHeroes(idleHeroes.slice(0, z.heroSlots).map((h) => h.id));
+    // Keep the player's own picks (they used to be overwritten by an auto-filled team, so clicking
+    // a pre-selected hero removed it and the launched team wasn't the one they picked).
+    setSelectedHeroes((prev) => prev.filter((id) => idleHeroes.some((h) => h.id === id)).slice(0, z.heroSlots));
+  }
+
+  function autoTeam() {
+    if (!zone) return;
+    setSelectedHeroes(idleHeroes.slice(0, zone.heroSlots).map((h) => h.id));
   }
 
   function toggleHero(heroId: string) {
@@ -98,14 +106,20 @@ export default function ExpeditionsPage() {
     });
   }
 
+  // Only heroes still idle and within the zone's slot count — exactly what the chips show as picked.
+  const team = zone
+    ? selectedHeroes.filter((id) => idleHeroes.some((h) => h.id === id)).slice(0, zone.heroSlots)
+    : [];
+  const teamFull = !!zone && team.length >= zone.heroSlots;
+
   async function start() {
-    if (!selectedZone || selectedHeroes.length === 0) return;
+    if (!selectedZone || team.length === 0) return;
     setError(null);
     setStarting(true);
     try {
       const res = await callApi<{ expeditionId: string }>("/api/expeditions/start", {
         zoneId: selectedZone,
-        heroIds: selectedHeroes,
+        heroIds: team,
         difficulty,
       });
       router.push(`/expeditions/jouer/${res.expeditionId}`, { transitionTypes: ["nav-forward"] });
@@ -222,8 +236,16 @@ export default function ExpeditionsPage() {
           <Card>
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="font-display font-semibold text-slate-50">
-                Équipe pour {zone.name} ({selectedHeroes.length}/{zone.heroSlots})
+                Équipe pour {zone.name} ({team.length}/{zone.heroSlots})
               </h2>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={autoTeam} disabled={idleHeroes.length === 0}>
+                  Équipe auto (les plus forts)
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedHeroes([])} disabled={team.length === 0}>
+                  Vider
+                </Button>
+              </div>
               <div className="flex w-full flex-wrap gap-2">
                 {DIFFICULTIES.map((d) => {
                   const open = isDifficultyUnlocked(zone.id, d.id, records);
@@ -244,7 +266,7 @@ export default function ExpeditionsPage() {
                   de rareté ne changent pas.
                 </p>
               )}
-              {selectedHeroes.length > 0 && (
+              {team.length > 0 && (
                 <p className="text-sm">
                   <span className="text-slate-400">Puissance : </span>
                   <span className="font-semibold text-slate-100">{teamPower}</span>
@@ -262,9 +284,18 @@ export default function ExpeditionsPage() {
                   .map((s) => ARENA_SPELL_TAGS[s!.arenaAbilityTag].icon)
                   .join(" ");
                 return (
-                  <Chip key={hero.id} fullWidth selected={selectedHeroes.includes(hero.id)} onClick={() => toggleHero(hero.id)}>
+                  <Chip
+                    key={hero.id}
+                    fullWidth
+                    selected={team.includes(hero.id)}
+                    disabled={!team.includes(hero.id) && teamFull}
+                    onClick={() => toggleHero(hero.id)}
+                  >
                     <span className="flex items-center justify-between gap-2">
                       <span>
+                        {team.includes(hero.id) && (
+                          <span className="mr-1 text-amber-300">{team[0] === hero.id ? "👑" : `${team.indexOf(hero.id) + 1}.`}</span>
+                        )}
                         {hero.name} <span className="text-xs text-slate-500">Nv.{hero.level} · {classDef?.name ?? "Sans classe"}</span>
                       </span>
                       <span className="text-xs text-amber-300">💪 {powerByHero.get(hero.id)}</span>
@@ -275,11 +306,14 @@ export default function ExpeditionsPage() {
               })}
             </div>
             {idleHeroes.length === 0 && <p className="mt-2 text-sm text-slate-500">Aucun héros disponible.</p>}
+            {teamFull && (
+              <p className="mt-2 text-xs text-amber-300/80">Équipe complète : retirez un héros pour en choisir un autre.</p>
+            )}
             <p className="mt-3 text-xs text-slate-500">
               Chaque héros combat sur le terrain selon son rôle (DPS : tirs, Tank : attire et frappe autour de lui, Soigneur : soigne) et lance
               automatiquement ses sorts équipés. Le premier héros sélectionné est le chef que vous dirigez.
             </p>
-            <Button onClick={start} disabled={starting || selectedHeroes.length === 0} className="mt-4">
+            <Button onClick={start} disabled={starting || team.length === 0} className="mt-4">
               {starting ? "Départ..." : "Lancer l'expédition"}
             </Button>
           </Card>

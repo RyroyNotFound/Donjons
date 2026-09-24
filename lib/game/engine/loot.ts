@@ -77,6 +77,63 @@ function rollDroppedItem(
   return rollItem(rng, { baseName, slot, tier, baseStats, rarity });
 }
 
+/** Extra reward for conquering a dungeon (every treasure room reached), created from nothing —
+ *  never taken from the defender. Scales with the dungeon's defense level so harder dungeons are
+ *  worth the all-or-nothing risk. The item uses the boss-kill rarity odds (a conquest is the
+ *  dungeon's "boss"), its tier and stats follow the defense level. */
+export interface ConquestBounty {
+  gold: number;
+  forgeShards: number;
+  item: DroppedItem;
+}
+
+/** Defense level at which the bounty item reaches each tier (index = tier - 1). */
+const BOUNTY_TIER_LEVELS = [0, 10, 20, 35, 50];
+
+export function conquestBountyTier(defenseLevel: number): number {
+  let tier = 1;
+  BOUNTY_TIER_LEVELS.forEach((level, i) => {
+    if (defenseLevel >= level) tier = i + 1;
+  });
+  return Math.min(MAX_ITEM_TIER, tier);
+}
+
+/** Gold is only for real players' dungeons (a bot's gold is already in its fixed loot). */
+export function conquestBountyPreview(defenseLevel: number, vsBot: boolean): { gold: number; forgeShards: number; tier: number } {
+  const level = Math.max(1, defenseLevel);
+  return {
+    gold: vsBot ? 0 : 60 + level * 12,
+    forgeShards: 3 + Math.floor(level / 4),
+    tier: conquestBountyTier(level),
+  };
+}
+
+export function rollConquestBounty(seed: string, defenseLevel: number, vsBot: boolean): ConquestBounty {
+  const rng = createRng(`${seed}:bounty`);
+  const level = Math.max(1, defenseLevel);
+  const { gold, forgeShards, tier } = conquestBountyPreview(level, vsBot);
+  const slot = ITEM_SLOTS[randomInt(rng, 0, ITEM_SLOTS.length - 1)];
+  const rarity = rollRarity(rng, BOSS_RARITY_WEIGHTS);
+  const power = Math.round((2 + level / 6) * (1 + level / 20));
+  const statKeys: (keyof HeroStats)[] = ["atkPhys", "atkMag", "defPhys", "defMag", "hp", "spd"];
+  const primaryStat = statKeys[randomInt(rng, 0, statKeys.length - 1)];
+  const names = BOUNTY_ITEM_NAMES[slot];
+  const item = rollItem(rng, {
+    baseName: names[randomInt(rng, 0, names.length - 1)],
+    slot,
+    tier,
+    baseStats: { [primaryStat]: primaryStat === "hp" ? power * 3 : primaryStat === "spd" ? Math.max(1, Math.round(power / 3)) : power },
+    rarity,
+  });
+  return { gold, forgeShards, item };
+}
+
+const BOUNTY_ITEM_NAMES: Record<ItemSlot, string[]> = {
+  weapon: ["Lame du pillard", "Bâton du conquérant", "Hache du trésor"],
+  armor: ["Cuirasse du pillard", "Manteau du conquérant", "Brigandine du trésor"],
+  trinket: ["Sceau du conquérant", "Chevalière du pillard", "Relique du trésor"],
+};
+
 /** Rolls the loot for a finished expedition run. `performance` (0.3..1.5, see the claim route)
  *  scales gold/resources and the item chance; a boss kill guarantees a better item.
  *  `zone` must already be scaled to `difficulty` (zoneAtDifficulty) for gold/resource amounts.

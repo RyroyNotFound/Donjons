@@ -48,13 +48,27 @@ export interface TalentNode {
   tier: number;
   cost: number;
   maxRank: number;
+  /** The node this one follows in the tree — display only: it no longer gates spending, since
+   *  nodes come from random gacha pulls and a missing prerequisite would lock them forever. */
   requires?: string;
   /** Minimum hero star rank needed to unlock this node, in addition to `requires`. */
   requiresStarRank?: number;
   statBonusPerRank: Partial<HeroStats>;
 }
 
-export type ArenaAbilityTag = "cleave" | "multishot" | "regen" | "haste" | "dmgbuff" | "lifesteal";
+export type ArenaAbilityTag =
+  | "cleave"
+  | "multishot"
+  | "regen"
+  | "haste"
+  | "dmgbuff"
+  | "lifesteal"
+  | "nova"
+  | "chain"
+  | "meteor"
+  | "barrier"
+  | "venom"
+  | "execute";
 
 /** How a spell modifies its owner's attack during turn-based dungeon-raid combat
  *  (lib/game/engine/dungeonCombat.ts): splash damage to a second target, bonus damage
@@ -142,6 +156,8 @@ export interface Hero {
   equippedSpellIds: string[];
   equippedMasteryIds: string[];
   equipment: Partial<Record<ItemSlot, string>>;
+  /** Legacy per-hero ensembles, from before they were shared by the account (UserProfile.builds).
+   *  Kept untouched; only read to seed the shared list (see lib/game/builds.ts). */
   builds: HeroBuild[];
   status: HeroStatus;
   createdAt: number;
@@ -376,6 +392,8 @@ export interface RaidView {
   newLog: RaidLogEntry[];
   /** Set on the response of the move/flee that ended the raid: crystals the attacker earned. */
   crystalsEarned?: number;
+  /** Set on the response of the move that conquered the dungeon (see rollConquestBounty). */
+  bounty?: { gold: number; forgeShards: number; item: Pick<Item, "name" | "rarity" | "slot" | "tier"> };
 }
 
 export interface ZoneLootTable {
@@ -420,7 +438,7 @@ export interface ZoneDefinition {
   /** Team power (see heroPower in lib/game/engine/stats.ts) at which the zone is comfortable. */
   recommendedPower: number;
   heroSlots: number;
-  /** Length of the live arena run, in seconds (≤ 60: expeditions are quick sessions). */
+  /** Length of the live arena run, in seconds (90..120; monsters toughen over time, see timeRamp). */
   durationSec: number;
   /** Monster catalog ids (from lib/game/content/dungeon.ts) this zone can spawn during a run. */
   monsterPool: string[];
@@ -574,6 +592,9 @@ export interface UserProfile {
    *  duplicate raises this rank (see lib/game/economy.ts componentRankMultiplier) instead of
    *  converting to currency, until the rank cap is hit. */
   componentRanks: Record<string, number>;
+  /** Ensembles shared by all the account's heroes. Absent = never saved since they became shared:
+   *  the heroes' old per-hero lists stand in (see sharedBuilds in lib/game/builds.ts). */
+  builds?: HeroBuild[];
   gachaPity: GachaPityState;
   createdAt: number;
 }

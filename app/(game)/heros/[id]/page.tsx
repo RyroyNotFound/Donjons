@@ -1,26 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, ViewTransition } from "react";
 import { useGameData } from "@/lib/game/GameDataProvider";
 import { CLASSES, tryGetClass } from "@/lib/game/content/classes";
-import { SPELLS } from "@/lib/game/content/spells";
-import { MASTERIES } from "@/lib/game/content/masteries";
 import { getTalentsForClass } from "@/lib/game/content/talents";
 import { heroElement, resolveHeroStats } from "@/lib/game/engine/stats";
 import { ELEMENT_ICON, ELEMENT_LABEL, ELEMENTS, RES_KEY } from "@/lib/game/engine/elements";
 import { itemTotalStats } from "@/lib/game/engine/items";
-import { formatStatBonus, RAID_EFFECT_LABEL, ARENA_EFFECT_LABEL } from "@/lib/game/statFormat";
+import { formatStatBonus } from "@/lib/game/statFormat";
+import { cleanPlayerName, heroNameError, HERO_NAME_MAX } from "@/lib/game/playerName";
+import { RARITY_LABEL } from "@/lib/ui/rarity";
 import { xpToNextLevel } from "@/lib/game/engine/xp";
-import {
-  MAX_STAR_RANK,
-  MAX_COMPONENT_RANK,
-  SPELL_SLOTS,
-  MASTERY_SLOTS,
-  levelCapForStar,
-  rankUpCost,
-} from "@/lib/game/economy";
+import { MAX_STAR_RANK, MAX_COMPONENT_RANK, levelCapForStar, rankUpCost } from "@/lib/game/economy";
 import { callApi } from "@/lib/api/client";
 import { Card } from "@/components/Card";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -29,6 +21,11 @@ import { Button } from "@/components/Button";
 import { Label, selectClass, inputClass } from "@/components/Field";
 import { Panel } from "@/components/Panel";
 import { EmptyState } from "@/components/EmptyState";
+import { ItemCard } from "@/components/forge/ItemCard";
+import { SpellList, MasteryList } from "@/components/heroes/LoadoutLists";
+import { sharedBuilds, MAX_SHARED_BUILDS } from "@/lib/game/builds";
+import { tryGetSpell } from "@/lib/game/content/spells";
+import { getMastery } from "@/lib/game/content/masteries";
 import { PageTransition } from "@/components/PageTransition";
 import { SpriteAnimation } from "@/components/SpriteAnimation";
 import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
@@ -48,6 +45,7 @@ export default function HeroDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [buildName, setBuildName] = useState("");
+  const [renaming, setRenaming] = useState<string | null>(null);
 
   const hero = heroes.find((h) => h.id === id);
   if (!hero || !profile) {
@@ -64,8 +62,13 @@ export default function HeroDetailPage() {
     hero.equipment[slot] ? items.find((i) => i.id === hero.equipment[slot]) : undefined,
   ).filter(Boolean) as Item[];
   const stats = resolveHeroStats(hero, equippedItems, ranks);
-  const ownedUnequippedBySlot = (slot: ItemSlot) =>
-    items.filter((i) => i.slot === slot && (!i.equippedByHeroId || i.equippedByHeroId === hero.id));
+  const heroName = (heroId?: string) => heroes.find((h) => h.id === heroId)?.name;
+  // Every item of the slot: free ones first, then those worn by other heroes (picking one takes it off them).
+  const itemsForSlot = (slot: ItemSlot) =>
+    items
+      .filter((i) => i.slot === slot)
+      .sort((a, b) => Number(!!a.equippedByHeroId && a.equippedByHeroId !== hero.id) - Number(!!b.equippedByHeroId && b.equippedByHeroId !== hero.id));
+  const builds = sharedBuilds(profile, heroes);
 
   async function run(fn: () => Promise<unknown>) {
     setError(null);
@@ -88,6 +91,12 @@ export default function HeroDetailPage() {
     run(() => callApi(`/api/heroes/${hero!.id}/loadout`, { kind, refId, equip: equipIt }));
   const applyBuild = (buildId: string) => run(() => callApi(`/api/heroes/${hero!.id}/builds`, { action: "apply", buildId }));
   const deleteBuild = (buildId: string) => run(() => callApi(`/api/heroes/${hero!.id}/builds`, { action: "delete", buildId }));
+  const renameError = renaming === null ? null : heroNameError(cleanPlayerName(renaming));
+  const rename = () =>
+    run(async () => {
+      await callApi(`/api/heroes/${hero!.id}/rename`, { name: cleanPlayerName(renaming ?? "") });
+      setRenaming(null);
+    });
   const saveBuild = () =>
     run(async () => {
       await callApi(`/api/heroes/${hero!.id}/builds`, { action: "save", name: buildName });
@@ -126,6 +135,42 @@ export default function HeroDetailPage() {
           />
         </div>
       </ViewTransition>
+
+      {renaming === null ? (
+        <button
+          type="button"
+          onClick={() => setRenaming(hero.name)}
+          className="-mt-4 text-xs text-slate-500 underline-offset-2 hover:text-amber-300 hover:underline"
+        >
+          ✎ Renommer
+        </button>
+      ) : (
+        <form
+          className="-mt-2 flex flex-wrap items-start gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!renameError) rename();
+          }}
+        >
+          <div>
+            <input
+              autoFocus
+              className={`${inputClass} max-w-xs`}
+              value={renaming}
+              maxLength={HERO_NAME_MAX}
+              onChange={(e) => setRenaming(e.target.value)}
+              aria-label="Nouveau nom"
+            />
+            {renameError && <p className="mt-1 text-xs text-red-400">{renameError}</p>}
+          </div>
+          <Button size="sm" type="submit" disabled={busy || !!renameError}>
+            Valider
+          </Button>
+          <Button size="sm" variant="ghost" type="button" onClick={() => setRenaming(null)}>
+            Annuler
+          </Button>
+        </form>
+      )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
@@ -185,6 +230,29 @@ export default function HeroDetailPage() {
             <Panel as="li" padding="sm" className="col-span-2">Rés. pièges (raids) : {stats.trapRes}%</Panel>
           </ul>
           {(() => {
+            const magic = stats.atkMag > stats.atkPhys;
+            const used = magic ? stats.atkMag : stats.atkPhys;
+            const unused = magic ? stats.atkPhys : stats.atkMag;
+            return (
+              <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-slate-400">
+                <p>
+                  Attaque utilisée :{" "}
+                  <span className={magic ? "text-violet-300" : "text-amber-200"}>
+                    {magic ? "magique" : "physique"} ({used})
+                  </span>
+                  {unused > 0 && <span className="text-slate-500"> — l&apos;autre ({unused}) ne sert pas</span>}
+                </p>
+                <p className="mt-1 text-slate-500">
+                  Un héros frappe toujours avec la plus haute de ses deux attaques, et la cible réduit le coup avec sa
+                  défense <em>du même type</em> : défense physique contre les coups physiques, défense magique contre les
+                  sorts. Mieux vaut donc tout miser sur un seul type (armes, maîtrises, talents), et viser l&apos;autre
+                  type si la cible a une grosse défense dans le vôtre. Presque tous les monstres frappent en physique,
+                  la Liche des ombres en magique.
+                </p>
+              </div>
+            );
+          })()}
+          {(() => {
             const element = heroElement(hero);
             return (
               <p className="mt-3 text-xs text-slate-400">
@@ -220,7 +288,7 @@ export default function HeroDetailPage() {
           <div className="space-y-3">
             {SLOTS.map((slot) => {
               const currentId = hero.equipment[slot];
-              const options = ownedUnequippedBySlot(slot);
+              const options = itemsForSlot(slot);
               return (
                 <div key={slot}>
                   <Label>{SLOT_LABEL[slot]}</Label>
@@ -233,11 +301,22 @@ export default function HeroDetailPage() {
                     <option value="">— Aucun —</option>
                     {options.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name}
+                        [{RARITY_LABEL[item.rarity]}] {item.name}
                         {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""} — {formatStatBonus(itemTotalStats(item))}
+                        {item.equippedByHeroId && item.equippedByHeroId !== hero.id
+                          ? ` — porté par ${heroName(item.equippedByHeroId) ?? "un autre héros"}`
+                          : ""}
                       </option>
                     ))}
                   </select>
+                  {(() => {
+                    const current = currentId ? items.find((i) => i.id === currentId) : undefined;
+                    return current ? (
+                      <div className="mt-2">
+                        <ItemCard item={current} />
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
               );
             })}
@@ -272,154 +351,46 @@ export default function HeroDetailPage() {
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <h2 className="font-display mb-1 font-semibold text-slate-50">Sorts</h2>
-          <p className="mb-3 text-sm text-slate-400">
-            Emplacements : {hero.equippedSpellIds.length}/{SPELL_SLOTS} — utilisables sur n&apos;importe quel
-            héros ; la classe assortie donne un bonus de puissance.
-          </p>
-          {(() => {
-            const ownedSpells = SPELLS.filter((spell) => (ranks[spell.id] ?? 0) > 0);
-            if (ownedSpells.length === 0) {
-              return (
-                <p className="text-sm text-slate-500">
-                  Aucun sort obtenu — voir l&apos;
-                  <Link href="/heros/inventaire" transitionTypes={["nav-forward"]} className="text-amber-400 underline">
-                    inventaire
-                  </Link>
-                  .
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {ownedSpells.map((spell) => {
-                  const equipped = hero.equippedSpellIds.includes(spell.id);
-                  const full = !equipped && hero.equippedSpellIds.length >= SPELL_SLOTS;
-                  const rank = ranks[spell.id] ?? 1;
-                  const classMatch = !!spell.classId && spell.classId === hero.classId;
-                  return (
-                    <Panel
-                      key={spell.id}
-                      tone={equipped ? "highlight" : "neutral"}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-100">
-                          {spell.name} <span className="text-xs text-slate-500">Rang {rank}/{MAX_COMPONENT_RANK}</span>
-                          {classMatch && (
-                            <span className="ml-1 text-xs text-emerald-400">★ bonus de classe</span>
-                          )}
-                          {spell.element && (
-                            <span className="ml-1 text-xs text-slate-300">
-                              {ELEMENT_ICON[spell.element]} {ELEMENT_LABEL[spell.element]}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-xs text-slate-400">{spell.description}</p>
-                        <p className="mt-0.5 text-xs text-amber-400">
-                          Donjon : {RAID_EFFECT_LABEL[spell.raidEffectTag]}
-                        </p>
-                        <p className="text-xs text-sky-400">{ARENA_EFFECT_LABEL[spell.arenaAbilityTag]}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => toggleLoadout("spell", spell.id, !equipped)}
-                        disabled={busy || full}
-                      >
-                        {equipped ? "Retirer" : "Équiper"}
-                      </Button>
-                    </Panel>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </Card>
-
-        <Card>
-          <h2 className="font-display mb-1 font-semibold text-slate-50">Maîtrises</h2>
-          <p className="mb-3 text-sm text-slate-400">
-            Emplacements : {hero.equippedMasteryIds.length}/{MASTERY_SLOTS} — universelles, disponibles sans
-            classe.
-          </p>
-          {(() => {
-            const ownedMasteries = MASTERIES.filter((m) => (ranks[m.id] ?? 0) > 0);
-            if (ownedMasteries.length === 0) {
-              return (
-                <p className="text-sm text-slate-500">
-                  Aucune maîtrise obtenue — voir l&apos;
-                  <Link href="/heros/inventaire" transitionTypes={["nav-forward"]} className="text-amber-400 underline">
-                    inventaire
-                  </Link>
-                  .
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {ownedMasteries.map((mastery) => {
-                  const equipped = hero.equippedMasteryIds.includes(mastery.id);
-                  const full = !equipped && hero.equippedMasteryIds.length >= MASTERY_SLOTS;
-                  const rank = ranks[mastery.id] ?? 1;
-                  return (
-                    <Panel
-                      key={mastery.id}
-                      tone={equipped ? "highlight" : "neutral"}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-100">
-                          {mastery.name} <span className="text-xs text-slate-500">Rang {rank}/{MAX_COMPONENT_RANK}</span>
-                        </p>
-                        <p className="text-xs text-slate-400">{mastery.description}</p>
-                        <p className="mt-0.5 text-xs text-amber-400">{formatStatBonus(mastery.statBonus)}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => toggleLoadout("mastery", mastery.id, !equipped)}
-                        disabled={busy || full}
-                      >
-                        {equipped ? "Retirer" : "Équiper"}
-                      </Button>
-                    </Panel>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </Card>
+        <SpellList hero={hero} ranks={ranks} busy={busy} onToggle={toggleLoadout} />
+        <MasteryList hero={hero} ranks={ranks} busy={busy} onToggle={toggleLoadout} />
       </div>
 
       {classDef && (
         <Card>
           <h2 className="font-display mb-1 font-semibold text-slate-50">Arbre de talents — {classDef.name}</h2>
-          <p className="mb-4 text-sm text-slate-400">
+          <p className="mb-1 text-sm text-slate-400">
             Points disponibles : <span className="text-amber-400">{hero.talentPoints}</span>
           </p>
+          <p className="mb-4 text-xs text-slate-500">
+            1 point par niveau gagné (expéditions). Un talent obtenu à l&apos;invocation s&apos;active en y investissant
+            des points ; il reste actif tant que ce héros garde cette classe. Les talents non obtenus sont grisés.
+          </p>
           {(() => {
-            const ownedTalents = getTalentsForClass(hero.classId!).filter((node) => (ranks[node.id] ?? 0) > 0);
-            if (ownedTalents.length === 0) {
-              return (
-                <p className="text-sm text-slate-500">
-                  Aucun talent obtenu pour {classDef.name} — voir l&apos;
-                  <Link href="/heros/inventaire" transitionTypes={["nav-forward"]} className="text-amber-400 underline">
-                    inventaire
-                  </Link>
-                  .
-                </p>
-              );
-            }
+            const tree = getTalentsForClass(hero.classId!);
             return (
               <div className="grid gap-3 sm:grid-cols-2">
-                {ownedTalents.map((node) => {
+                {tree.map((node) => {
+                  const owned = (ranks[node.id] ?? 0) > 0;
                   const invested = hero.talents[node.id] ?? 0;
                   const maxed = invested >= node.maxRank;
-                  const prereqOk = !node.requires || (hero.talents[node.requires] ?? 0) > 0;
                   const starOk = !node.requiresStarRank || (hero.starRank ?? 1) >= node.requiresStarRank;
                   const canAfford = hero.talentPoints >= node.cost;
-                  const canSpend = !maxed && prereqOk && starOk && canAfford && !busy;
+                  const canSpend = owned && !maxed && starOk && canAfford && !busy;
                   const componentRank = ranks[node.id] ?? 1;
+
+                  if (!owned) {
+                    return (
+                      <Panel key={node.id} className="opacity-50">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-slate-300">{node.name}</p>
+                          <span className="text-xs text-slate-500">Palier {node.tier}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">{node.description}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{formatStatBonus(node.statBonusPerRank)} par rang</p>
+                        <p className="mt-2 text-xs text-slate-500">🔒 À obtenir à l&apos;invocation ou à l&apos;Observatoire</p>
+                      </Panel>
+                    );
+                  }
 
                   return (
                     <Panel key={node.id} tone={maxed ? "highlight" : "neutral"}>
@@ -438,17 +409,19 @@ export default function HeroDetailPage() {
                       <p className="mt-0.5 text-xs text-amber-400">
                         {formatStatBonus(node.statBonusPerRank)} par rang
                       </p>
-                      {node.requires && !prereqOk && (
-                        <p className="mt-1 text-xs text-red-400">Prérequis manquant</p>
-                      )}
                       {!starOk && <p className="mt-1 text-xs text-red-400">Nécessite {node.requiresStarRank}★</p>}
+                      {!maxed && starOk && !canAfford && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          {node.cost} point{node.cost > 1 ? "s" : ""} requis (vous en avez {hero.talentPoints})
+                        </p>
+                      )}
                       <Button
                         size="sm"
                         onClick={() => spendTalent(node.id)}
                         disabled={!canSpend}
                         className="mt-2 w-full"
                       >
-                        {maxed ? "Maîtrisé" : `Améliorer (${node.cost} pt)`}
+                        {maxed ? "Maîtrisé" : invested === 0 ? `Activer (${node.cost} pt)` : `Améliorer (${node.cost} pt)`}
                       </Button>
                     </Panel>
                   );
@@ -462,8 +435,9 @@ export default function HeroDetailPage() {
       <Card>
         <h2 className="font-display mb-1 font-semibold text-slate-50">Ensembles</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Sauvegardez la classe + les sorts/maîtrises équipés pour basculer instantanément entre plusieurs
-          configurations.
+          Sauvegardez la classe + les sorts/maîtrises équipés de ce héros. Les ensembles sont communs à tous vos
+          héros ({builds.length}/{MAX_SHARED_BUILDS}) : appliquez-en un à n&apos;importe lequel. Les talents n&apos;en
+          font pas partie.
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           <input
@@ -473,22 +447,36 @@ export default function HeroDetailPage() {
             maxLength={40}
             onChange={(e) => setBuildName(e.target.value)}
           />
-          <Button size="sm" onClick={saveBuild} disabled={busy || !buildName.trim()}>
+          <Button size="sm" onClick={saveBuild} disabled={busy || !buildName.trim() || builds.length >= MAX_SHARED_BUILDS}>
             Sauvegarder la config actuelle
           </Button>
         </div>
-        {hero.builds.length === 0 ? (
+        {builds.length === 0 ? (
           <p className="text-sm text-slate-500">Aucun ensemble sauvegardé.</p>
         ) : (
           <div className="space-y-2">
-            {hero.builds.map((build) => (
+            {builds.map((build) => (
               <Panel key={build.id} className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-medium text-slate-100">{build.name}</p>
                   <p className="text-xs text-slate-400">
-                    {tryGetClass(build.classId)?.name ?? "Sans classe"} · {build.equippedSpellIds.length} sort(s) ·{" "}
-                    {build.equippedMasteryIds.length} maîtrise(s)
+                    {tryGetClass(build.classId)?.name ?? "Sans classe"}
+                    {build.equippedSpellIds.length > 0 &&
+                      ` · ${build.equippedSpellIds.map((id) => tryGetSpell(id)?.name ?? "?").join(", ")}`}
                   </p>
+                  {build.equippedMasteryIds.length > 0 && (
+                    <p className="text-xs text-slate-500">
+                      {build.equippedMasteryIds
+                        .map((id) => {
+                          try {
+                            return getMastery(id).name;
+                          } catch {
+                            return "?";
+                          }
+                        })
+                        .join(", ")}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => applyBuild(build.id)} disabled={busy || hero.status !== "idle"}>
