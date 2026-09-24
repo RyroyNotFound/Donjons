@@ -26,6 +26,9 @@ export interface ExpeditionLootResult {
   gold: number;
   resources: Partial<Record<ResourceKind, number>>;
   item?: DroppedItem;
+  /** Second, independent item roll (same drop chance and rarity odds as a normal drop): runs got
+   *  twice as long, so they roll twice. */
+  extraItem?: DroppedItem;
   monsterCaptured?: string;
 }
 
@@ -170,5 +173,10 @@ export function rollExpeditionLoot(
     }
   }
 
-  return { gold, resources, item, monsterCaptured };
+  const extraItem =
+    rng() < zone.loot.itemDropChance * performance
+      ? rollDroppedItem(rng, zone.difficulty, LOOT_RARITY_WEIGHTS, difficulty)
+      : undefined;
+
+  return { gold, resources, item, extraItem, monsterCaptured };
 }

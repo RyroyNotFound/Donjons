@@ -12,6 +12,7 @@ import {
   MAX_ENHANCE_LEVEL,
   enhanceCost,
   reforgeCost,
+  bulkSalvageable,
   salvageYield,
 } from "@/lib/game/engine/items";
 import { formatStatBonus, ITEM_SLOT_LABEL } from "@/lib/game/statFormat";
@@ -23,7 +24,7 @@ import { Chip } from "@/components/Chip";
 import { ResourcePill } from "@/components/ResourcePill";
 import { PageTransition } from "@/components/PageTransition";
 import { ItemCard } from "@/components/forge/ItemCard";
-import type { Item, ItemSlot, ResourceKind } from "@/types/game";
+import type { Item, ItemRarity, ItemSlot, ResourceKind } from "@/types/game";
 
 const RESOURCE_LABEL: Record<ResourceKind, string> = {
   wood: "Bois",
@@ -56,6 +57,7 @@ export default function ForgePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [lastCrafted, setLastCrafted] = useState<Item | null>(null);
   const [confirmSalvage, setConfirmSalvage] = useState<string | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState<ItemRarity | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [recipeFilter, setRecipeFilter] = useState<RecipeFilter>("all");
 
@@ -94,6 +96,7 @@ export default function ForgePage() {
     } finally {
       setBusy(null);
       setConfirmSalvage(null);
+      setConfirmBulk(null);
     }
   }
 
@@ -117,6 +120,35 @@ export default function ForgePage() {
       const res = await callApi<{ item: Item }>(`/api/items/${item.id}/reforge`, { affixIndex });
       const line = res.item.affixes?.[affixIndex];
       return `Réforgé : ${line ? formatStatBonus(line.statBonus) : res.item.name}.`;
+    });
+
+  // What "recycle every <rarity>" would destroy and give back, per rarity (preview for the confirm step).
+  const bulkBatches = useMemo(() => {
+    const batches = Object.fromEntries(
+      ITEM_RARITIES.map((r) => [r, { count: 0, shards: 0, resources: {} as Partial<Record<ResourceKind, number>> }]),
+    ) as Record<ItemRarity, { count: number; shards: number; resources: Partial<Record<ResourceKind, number>> }>;
+    for (const item of items) {
+      if (!bulkSalvageable(item)) continue;
+      const batch = batches[item.rarity];
+      const gained = salvageYield(item);
+      batch.count += 1;
+      batch.shards += gained.shards;
+      for (const [kind, amount] of Object.entries(gained.resources) as [ResourceKind, number][]) {
+        batch.resources[kind] = (batch.resources[kind] ?? 0) + amount;
+      }
+    }
+    return batches;
+  }, [items]);
+
+  const salvageRarity = (rarity: ItemRarity) =>
+    run(`salvage-bulk-${rarity}`, async () => {
+      const res = await callApi<{ count: number; shards: number; resources: Partial<Record<ResourceKind, number>> }>(
+        "/api/items/salvage-bulk",
+        { rarity },
+      );
+      return `${res.count} objet${res.count > 1 ? "s" : ""} recyclé${res.count > 1 ? "s" : ""} : +${res.shards} éclats${
+        formatResources(res.resources) ? `, ${formatResources(res.resources)}` : ""
+      }.`;
     });
 
   const salvage = (item: Item) =>
@@ -228,6 +260,43 @@ export default function ForgePage() {
                   {label}
                 </Chip>
               ))}
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-lg border border-white/10 bg-black/20 p-3">
+            <p className="mb-2 text-xs text-slate-400">
+              Recycler toute une rareté — les objets équipés et les objets améliorés (+1 ou plus) sont épargnés.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {ITEM_RARITIES.map((rarity) => {
+                const batch = bulkBatches[rarity];
+                if (batch.count === 0) return null;
+                const confirming = confirmBulk === rarity;
+                return (
+                  <div key={rarity} className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={confirming ? "danger" : "ghost"}
+                      disabled={busy !== null}
+                      onClick={() => (confirming ? salvageRarity(rarity) : setConfirmBulk(rarity))}
+                    >
+                      {confirming
+                        ? `Confirmer : détruire ${batch.count} objet${batch.count > 1 ? "s" : ""} (+${batch.shards} éclats${
+                            formatResources(batch.resources) ? `, ${formatResources(batch.resources)}` : ""
+                          })`
+                        : `Recycler tous les ${RARITY_LABEL[rarity].toLowerCase()}s (${batch.count})`}
+                    </Button>
+                    {confirming && (
+                      <Button size="sm" variant="secondary" onClick={() => setConfirmBulk(null)}>
+                        Annuler
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+              {ITEM_RARITIES.every((r) => bulkBatches[r].count === 0) && (
+                <p className="text-xs text-slate-500">Rien à recycler en masse.</p>
+              )}
             </div>
           </div>
 

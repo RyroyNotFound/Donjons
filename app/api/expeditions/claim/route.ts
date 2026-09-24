@@ -155,9 +155,10 @@ export const POST = withAuth(async (uid, request) => {
       });
     }
 
-    if (loot.item) {
+    for (const dropped of [loot.item, loot.extraItem]) {
+      if (!dropped) continue;
       const itemRef = adminDb.collection("items").doc();
-      const item: Item = { id: itemRef.id, ownerId: uid, ...loot.item, enhanceLevel: 0 };
+      const item: Item = { id: itemRef.id, ownerId: uid, ...dropped, enhanceLevel: 0 };
       tx.set(itemRef, item);
     }
 

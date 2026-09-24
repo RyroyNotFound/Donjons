@@ -202,3 +202,9 @@ export function salvageYield(item: Pick<Item, "rarity" | "tier" | "slot" | "enha
     resources: { [SALVAGE_RESOURCE[item.slot]]: 2 * tier * (r + 1) },
   };
 }
+
+/** Items the "recycle a whole rarity" button destroys: not equipped, and never enhanced (an
+ *  enhanced item stays until salvaged one by one, so no forge investment is lost by mistake). */
+export function bulkSalvageable(item: Pick<Item, "equippedByHeroId" | "enhanceLevel">): boolean {
+  return !item.equippedByHeroId && (item.enhanceLevel ?? 0) === 0;
+}

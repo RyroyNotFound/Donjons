@@ -186,10 +186,13 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
                           📦 {amount} {RESOURCE_LABEL[kind as ResourceKind]}
                         </li>
                       ))}
-                      {outcome.loot.item && (
-                        <li>
-                          🎁 {outcome.loot.item.name} ({RARITY_LABEL[outcome.loot.item.rarity]})
-                        </li>
+                      {[outcome.loot.item, outcome.loot.extraItem].map(
+                        (dropped, i) =>
+                          dropped && (
+                            <li key={i}>
+                              🎁 {dropped.name} ({RARITY_LABEL[dropped.rarity]})
+                            </li>
+                          ),
                       )}
                       {outcome.loot.monsterCaptured && <li>🕸️ Monstre capturé !</li>}
                       {outcome.crystalsEarned > 0 && <li>💎 {outcome.crystalsEarned} cristaux</li>}
