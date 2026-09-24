@@ -10,7 +10,7 @@ import {
 } from "@/lib/game/content/dungeonUpgrades";
 import { partyDisarm, resolveMarchHeal, resolveRoomBattle, resolveTrapTrigger } from "@/lib/game/engine/dungeonCombat";
 import { ELEMENTS, resistancesOf } from "@/lib/game/engine/elements";
-import { ENTRANCE_CELL } from "@/lib/game/content/dungeon";
+import { ENTRANCE_CELL, MAX_TREASURE_ROOMS } from "@/lib/game/content/dungeon";
 import { isBotDefenderId } from "@/lib/game/content/botDungeons";
 import { treasureRoomBonus } from "@/lib/game/engine/loot";
 import { isAdjacent, neighborsOf, roomKey, type Cell } from "@/lib/game/engine/dungeonLayout";
@@ -230,12 +230,11 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
   if (status === "in_progress" && cell.type === "treasure" && !treasureRoomsReached.includes(targetKey)) {
     treasureRoomsReached.push(targetKey);
     roomState.cleared = true;
-    // Every treasure room adds loot: a bot's rooms each hold its full loot; a player's rooms split
-    // the stealable stash share, plus a created treasure per room.
-    if (isBotDefenderId(raid.defenderId)) {
-      bankedLoot = addReward(bankedLoot, raid.totalLootPool);
-    } else {
-      bankedLoot = addReward(bankedLoot, shareOfReward(raid.totalLootPool, treasureRoomsTotal(raid)));
+    // Each treasure room holds a quarter of the pool (a dungeon has at most MAX_TREASURE_ROOMS):
+    // more treasure rooms = more loot, but no single room is worth the whole pool. A real
+    // player's rooms also hold a created treasure, never debited from them.
+    bankedLoot = addReward(bankedLoot, shareOfReward(raid.totalLootPool, MAX_TREASURE_ROOMS));
+    if (!isBotDefenderId(raid.defenderId)) {
       bankedBonus = addReward(bankedBonus, treasureRoomBonus(raid.defenderSnapshot.defenseLevel ?? 1));
     }
     newLog.push({

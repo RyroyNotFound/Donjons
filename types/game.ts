@@ -348,8 +348,8 @@ export interface DungeonRaid {
   /** Keyed by "row,col" — the authoritative fog-of-war truth. */
   rooms: Record<string, RaidRoomState>;
   treasureRoomsReached: string[];
-  /** Real defender: the stash share that can be stolen, split across the treasure rooms. Bot: the
-   *  loot found in EACH treasure room. */
+  /** Everything a dungeon with the maximum number of treasure rooms would give up (a real
+   *  defender's stealable stash share, or a bot's loot): each treasure room holds a quarter of it. */
   totalLootPool: BattleReward;
   /** Loot taken from the defender so far (debited from a real defender when the raid ends). */
   bankedLoot: BattleReward;
