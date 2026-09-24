@@ -5,13 +5,14 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { callApi } from "@/lib/api/client";
-import type { Dungeon, Expedition, Hero, Item, UserProfile } from "@/types/game";
+import type { Dungeon, DungeonUpgrades, Expedition, Hero, Item, UserProfile } from "@/types/game";
 
 interface GameDataValue {
   profile: UserProfile | null;
   heroes: Hero[];
   items: Item[];
   dungeon: Dungeon | null;
+  dungeonUpgrades: DungeonUpgrades | null;
   expeditions: Expedition[];
   loading: boolean;
 }
@@ -21,6 +22,7 @@ const EMPTY_STATE: GameDataValue = {
   heroes: [],
   items: [],
   dungeon: null,
+  dungeonUpgrades: null,
   expeditions: [],
   loading: false,
 };
@@ -61,6 +63,12 @@ export function GameDataProvider({ children }: { children: React.ReactNode }) {
       }),
       onSnapshot(doc(db, "dungeons", user.uid), (snap) => {
         setState((prev) => ({ ...prev, dungeon: (snap.data() as Dungeon) ?? null }));
+      }),
+      onSnapshot(doc(db, "dungeonUpgrades", user.uid), (snap) => {
+        setState((prev) => ({
+          ...prev,
+          dungeonUpgrades: (snap.data() as DungeonUpgrades) ?? null,
+        }));
       }),
       onSnapshot(
         query(collection(db, "expeditions"), where("ownerId", "==", user.uid)),

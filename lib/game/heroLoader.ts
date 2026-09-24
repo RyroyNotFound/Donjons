@@ -1,23 +1,26 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
 import { resolveHeroStats } from "@/lib/game/engine/stats";
-import type { Hero, HeroStats, Item } from "@/types/game";
+import type { Hero, HeroStats, Item, UserProfile } from "@/types/game";
 
 export interface ResolvedHero {
   hero: Hero;
   stats: HeroStats;
 }
 
-/** Loads the given heroes (must belong to `uid`) with their equipment-resolved combat stats. */
+/** Loads the given heroes (must belong to `uid`) with their equipment-resolved combat stats,
+ *  scaled by `uid`'s gacha-earned spell/talent/mastery ranks. */
 export async function loadOwnedHeroesWithStats(
   uid: string,
   heroIds: string[],
 ): Promise<ResolvedHero[]> {
   if (heroIds.length === 0) return [];
 
-  const heroSnaps = await Promise.all(
-    heroIds.map((id) => adminDb.collection("heroes").doc(id).get()),
-  );
+  const [heroSnaps, ownerSnap] = await Promise.all([
+    Promise.all(heroIds.map((id) => adminDb.collection("heroes").doc(id).get())),
+    adminDb.collection("users").doc(uid).get(),
+  ]);
+  const componentRanks = (ownerSnap.data() as UserProfile | undefined)?.componentRanks ?? {};
 
   const heroes: Hero[] = [];
   for (const snap of heroSnaps) {
@@ -41,13 +44,14 @@ export async function loadOwnedHeroesWithStats(
       .filter(Boolean)
       .map((itemId) => itemsById.get(itemId as string))
       .filter((item): item is Item => Boolean(item));
-    return { hero, stats: resolveHeroStats(hero, equippedItems) };
+    return { hero, stats: resolveHeroStats(hero, equippedItems, componentRanks) };
   });
 }
 
 export function teamPower(resolved: ResolvedHero[]): number {
   return resolved.reduce(
-    (sum, { stats }) => sum + stats.atk + stats.def + stats.hp / 10 + stats.spd,
+    (sum, { stats }) =>
+      sum + stats.atkPhys + stats.atkMag + stats.defPhys + stats.defMag + stats.hp / 10 + stats.spd,
     0,
   );
 }

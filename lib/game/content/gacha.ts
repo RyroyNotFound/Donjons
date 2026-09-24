@@ -13,8 +13,3 @@ export const RARITY_WEIGHTS: Record<GachaRarity, number> = {
 export const PITY_RARE_THRESHOLD = 10;
 export const PITY_EPIQUE_THRESHOLD = 30;
 export const PITY_LEGENDAIRE_THRESHOLD = 60;
-
-/** Subclass ids pulled at "commun" rarity. */
-export const COMMON_SUBCLASSES = ["guerrier", "pretre", "paladin"];
-/** Subclass ids pulled at "rare" rarity and above. */
-export const RARE_SUBCLASSES = ["archer", "druide", "colosse"];

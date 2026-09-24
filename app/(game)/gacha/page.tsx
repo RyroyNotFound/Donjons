@@ -11,6 +11,9 @@ import {
 import { Card } from "@/components/Card";
 import { ProgressBar } from "@/components/ProgressBar";
 import { GachaResultCard } from "@/components/gacha/GachaResultCard";
+import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/Button";
+import { PageTransition } from "@/components/PageTransition";
 import type { GachaPullResult } from "@/types/game";
 
 const SUMMON_ANIMATION_MS = 1100;
@@ -45,16 +48,24 @@ export default function GachaPage() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-zinc-50">Invocation</h1>
-        <p className="text-lg text-amber-400">💎 {crystals}</p>
-      </div>
+      <PageHeader
+        title="Invocation"
+        subtitle="Dépensez vos cristaux pour convoquer des héros et des ressources."
+        action={
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-lg font-semibold text-sky-300">
+            💎 {crystals}
+          </p>
+        }
+      />
 
       {pity && (
-        <Card>
-          <h2 className="mb-3 text-sm font-semibold text-zinc-300">Progression avant garantie</h2>
-          <div className="space-y-3 text-xs text-zinc-400">
+        <Card accent="epique">
+          <h2 className="font-display mb-3 text-sm font-semibold tracking-wide text-slate-300">
+            Progression avant garantie
+          </h2>
+          <div className="space-y-3 text-xs text-slate-400">
             <div>
               <div className="mb-1 flex justify-between">
                 <span>Rare+</span>
@@ -62,7 +73,11 @@ export default function GachaPage() {
                   {pity.pullsSinceRare}/{PITY_RARE_THRESHOLD}
                 </span>
               </div>
-              <ProgressBar value={pity.pullsSinceRare} max={PITY_RARE_THRESHOLD} colorClassName="bg-sky-500" />
+              <ProgressBar
+                value={pity.pullsSinceRare}
+                max={PITY_RARE_THRESHOLD}
+                colorClassName="from-sky-400 to-sky-600"
+              />
             </div>
             <div>
               <div className="mb-1 flex justify-between">
@@ -74,7 +89,7 @@ export default function GachaPage() {
               <ProgressBar
                 value={pity.pullsSinceEpique}
                 max={PITY_EPIQUE_THRESHOLD}
-                colorClassName="bg-purple-500"
+                colorClassName="from-purple-400 to-purple-600"
               />
             </div>
             <div>
@@ -87,7 +102,7 @@ export default function GachaPage() {
               <ProgressBar
                 value={pity.pullsSinceLegendaire}
                 max={PITY_LEGENDAIRE_THRESHOLD}
-                colorClassName="bg-amber-500"
+                colorClassName="from-amber-300 to-amber-500"
               />
             </div>
           </div>
@@ -95,27 +110,19 @@ export default function GachaPage() {
       )}
 
       <div className="flex gap-3">
-        <button
-          onClick={() => pull(1)}
-          disabled={pulling || crystals < 1}
-          className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        <Button onClick={() => pull(1)} disabled={pulling || crystals < 1}>
           Tirage x1 (1 💎)
-        </button>
-        <button
-          onClick={() => pull(10)}
-          disabled={pulling || crystals < 10}
-          className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        </Button>
+        <Button onClick={() => pull(10)} disabled={pulling || crystals < 10}>
           Tirage x10 (10 💎)
-        </button>
+        </Button>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {phase === "summoning" && (
         <div className="flex flex-col items-center justify-center gap-4 py-16">
-          <div className="gacha-portal flex h-24 w-24 items-center justify-center rounded-full border-4 border-amber-500/70 border-t-transparent text-4xl">
+          <div className="gacha-portal flex h-24 w-24 items-center justify-center rounded-full border-4 border-amber-500/70 border-t-transparent text-4xl shadow-[0_0_30px_rgba(245,158,11,0.35)]">
             💎
           </div>
           <p className="animate-pulse text-sm text-amber-300">Invocation en cours...</p>
@@ -130,5 +137,6 @@ export default function GachaPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   );
 }

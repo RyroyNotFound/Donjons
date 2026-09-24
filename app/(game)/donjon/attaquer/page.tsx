@@ -1,37 +1,56 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useGameData } from "@/lib/game/GameDataProvider";
 import { callApi } from "@/lib/api/client";
 import { Card } from "@/components/Card";
-import type { BattleLog } from "@/types/game";
+import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/Button";
+import { Spinner } from "@/components/Spinner";
+import { Badge } from "@/components/Badge";
+import { Chip } from "@/components/Chip";
+import { PageTransition } from "@/components/PageTransition";
+import type { RaidView } from "@/types/game";
 
-interface Target {
-  ownerId: string;
+interface DungeonTarget {
+  defenderId: string;
   displayName: string;
   roomCount: number;
-  hasBoss: boolean;
+  treasureRoomCount: number;
   pointsSpent: number;
+  isBot: boolean;
 }
 
 export default function AttaquerPage() {
   const { heroes } = useGameData();
-  const [targets, setTargets] = useState<Target[]>([]);
+  const router = useRouter();
+  const [targets, setTargets] = useState<DungeonTarget[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [selectedHeroes, setSelectedHeroes] = useState<string[]>([]);
-  const [battleLog, setBattleLog] = useState<BattleLog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingTargets, setLoadingTargets] = useState(true);
-  const [attacking, setAttacking] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [checkingActive, setCheckingActive] = useState(true);
 
-  const idleHeroes = heroes.filter((h) => h.status === "idle");
+  const idleHeroes = heroes.filter((h) => h.classId && h.status === "idle");
 
   useEffect(() => {
-    callApi<{ targets: Target[] }>("/api/dungeon/targets", undefined, "GET")
+    callApi<{ targets: DungeonTarget[] }>("/api/dungeon/targets", undefined, "GET")
       .then((res) => setTargets(res.targets))
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoadingTargets(false));
-  }, []);
+
+    callApi<{ view: RaidView | null }>("/api/dungeon/raid/active", undefined, "GET")
+      .then((res) => {
+        if (res.view)
+          router.replace(`/donjon/attaquer/raid/${res.view.raidId}`, {
+            transitionTypes: ["nav-forward"],
+          });
+      })
+      .catch(() => {})
+      .finally(() => setCheckingActive(false));
+  }, [router]);
 
   function toggleHero(heroId: string) {
     setSelectedHeroes((prev) =>
@@ -39,110 +58,93 @@ export default function AttaquerPage() {
     );
   }
 
-  async function attack() {
+  async function startRaid() {
     if (!selectedTarget || selectedHeroes.length === 0) return;
     setError(null);
-    setAttacking(true);
-    setBattleLog(null);
+    setStarting(true);
     try {
-      const res = await callApi<{ battleLog: BattleLog }>("/api/dungeon/attack", {
+      const res = await callApi<{ raidId: string }>("/api/dungeon/raid/start", {
         defenderId: selectedTarget,
         heroIds: selectedHeroes,
       });
-      setBattleLog(res.battleLog);
-      setSelectedHeroes([]);
+      router.push(`/donjon/attaquer/raid/${res.raidId}`, { transitionTypes: ["nav-forward"] });
     } catch (e) {
       setError((e as Error).message);
-    } finally {
-      setAttacking(false);
+      setStarting(false);
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-zinc-50">Attaquer un donjon</h1>
+  if (checkingActive)
+    return (
+      <PageTransition>
+        <Spinner label="Vérification d'un raid en cours..." />
+      </PageTransition>
+    );
 
-      {loadingTargets && <p className="text-zinc-400">Recherche de cibles...</p>}
+  return (
+    <PageTransition>
+    <div className="space-y-6">
+      <PageHeader
+        title="Attaquer un donjon"
+        subtitle="Pillez les donjons des autres aventuriers, ou entraînez-vous contre des repaires."
+      />
+
+      {loadingTargets && <Spinner label="Recherche de cibles..." />}
       {!loadingTargets && targets.length === 0 && (
-        <p className="text-zinc-400">Aucun donjon adverse configuré pour le moment.</p>
+        <p className="text-slate-400">Aucune cible disponible pour le moment.</p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {targets.map((target) => (
           <Card
-            key={target.ownerId}
-            className={`cursor-pointer transition ${
-              selectedTarget === target.ownerId ? "border-amber-500" : ""
-            }`}
+            key={target.defenderId}
+            accent={selectedTarget === target.defenderId ? "gold" : target.isBot ? "danger" : "default"}
+            interactive
           >
-            <button className="w-full text-left" onClick={() => setSelectedTarget(target.ownerId)}>
-              <p className="font-semibold text-zinc-50">{target.displayName}</p>
-              <p className="text-sm text-zinc-400">
-                {target.roomCount} salle(s) gardée(s){target.hasBoss ? " · Boss" : ""}
+            <button className="w-full text-left" onClick={() => setSelectedTarget(target.defenderId)}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-display font-semibold text-slate-50">{target.displayName}</p>
+                {target.isBot && <Badge tone="danger">Repaire</Badge>}
+              </div>
+              <p className="text-sm text-slate-400">
+                {target.roomCount} salle(s) · {target.treasureRoomCount} trésor(s)
               </p>
-              <p className="text-xs text-zinc-500">Valeur : {target.pointsSpent} pts</p>
+              <p className="text-xs text-slate-500">Valeur : {target.pointsSpent} pts</p>
             </button>
           </Card>
         ))}
       </div>
 
       {selectedTarget && (
-        <Card>
-          <h2 className="mb-3 font-semibold text-zinc-50">Choisir votre équipe</h2>
+        <Card textured accent="danger">
+          <h2 className="font-display mb-3 font-semibold text-slate-50">Choisir votre équipe</h2>
           <div className="flex flex-wrap gap-2">
             {idleHeroes.map((hero) => (
-              <button
+              <Chip
                 key={hero.id}
+                selected={selectedHeroes.includes(hero.id)}
                 onClick={() => toggleHero(hero.id)}
-                className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                  selectedHeroes.includes(hero.id)
-                    ? "border-amber-500 bg-amber-500/20 text-amber-300"
-                    : "border-zinc-700 text-zinc-300 hover:bg-zinc-800"
-                }`}
               >
                 {hero.name} (Nv.{hero.level})
-              </button>
+              </Chip>
             ))}
           </div>
           {idleHeroes.length === 0 && (
-            <p className="mt-2 text-sm text-zinc-500">Aucun héros disponible.</p>
+            <p className="mt-2 text-sm text-slate-500">Aucun héros disponible.</p>
           )}
-          <button
-            onClick={attack}
-            disabled={attacking || selectedHeroes.length === 0}
-            className="mt-4 rounded-lg bg-red-600 px-4 py-2 font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+          <Button
+            variant="danger"
+            onClick={startRaid}
+            disabled={starting || selectedHeroes.length === 0}
+            className="mt-4"
           >
-            {attacking ? "Attaque en cours..." : "Lancer l'attaque"}
-          </button>
+            {starting ? "Préparation..." : "Lancer l'attaque"}
+          </Button>
         </Card>
       )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
-
-      {battleLog && (
-        <Card>
-          <h2
-            className={`mb-3 text-lg font-bold ${
-              battleLog.outcome === "victoire" ? "text-emerald-400" : "text-red-400"
-            }`}
-          >
-            {battleLog.outcome === "victoire" ? "Victoire !" : "Défaite..."}
-          </h2>
-          {battleLog.outcome === "victoire" && (
-            <p className="mb-3 text-sm text-amber-400">
-              Butin : {battleLog.rewards.gold} or
-              {Object.entries(battleLog.rewards.resources)
-                .map(([k, v]) => `, ${v} ${k}`)
-                .join("")}
-            </p>
-          )}
-          <ol className="max-h-80 space-y-1 overflow-y-auto text-sm text-zinc-400">
-            {battleLog.rounds.map((round, i) => (
-              <li key={i}>{round.message}</li>
-            ))}
-          </ol>
-        </Card>
-      )}
     </div>
+    </PageTransition>
   );
 }

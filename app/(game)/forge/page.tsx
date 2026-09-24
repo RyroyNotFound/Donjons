@@ -5,6 +5,11 @@ import { useGameData } from "@/lib/game/GameDataProvider";
 import { callApi } from "@/lib/api/client";
 import { RECIPES } from "@/lib/game/content/recipes";
 import { Card } from "@/components/Card";
+import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/Button";
+import { Badge } from "@/components/Badge";
+import { RARITY_BADGE } from "@/lib/ui/rarity";
+import { PageTransition } from "@/components/PageTransition";
 import type { ResourceKind } from "@/types/game";
 
 const RESOURCE_LABEL: Record<ResourceKind, string> = {
@@ -45,28 +50,29 @@ export default function ForgePage() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-zinc-50">Forge</h1>
+      <PageHeader title="Forge" subtitle="Fabriquez de l'équipement à partir de vos ressources." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {RECIPES.map((recipe) => (
           <Card key={recipe.id}>
-            <p className="font-semibold text-zinc-50">{recipe.name}</p>
-            <p className="text-xs text-zinc-500">{recipe.profession}</p>
-            <p className="mt-1 text-sm text-zinc-400">{recipe.description}</p>
-            <p className="mt-2 text-xs text-zinc-500">
+            <p className="font-display font-semibold text-slate-50">{recipe.name}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{recipe.profession}</p>
+            <p className="mt-1 text-sm text-slate-400">{recipe.description}</p>
+            <p className="mt-2 text-xs text-slate-500">
               Coût : {recipe.cost.gold} or
               {Object.entries(recipe.cost.resources).map(
                 ([kind, amount]) => `, ${amount} ${RESOURCE_LABEL[kind as ResourceKind]}`,
               )}
             </p>
-            <button
+            <Button
               onClick={() => craft(recipe.id)}
               disabled={crafting !== null || !canAfford(recipe.id)}
-              className="mt-3 w-full rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-3 w-full"
             >
               {crafting === recipe.id ? "Fabrication..." : "Fabriquer"}
-            </button>
+            </Button>
           </Card>
         ))}
       </div>
@@ -75,21 +81,26 @@ export default function ForgePage() {
       {message && <p className="text-sm text-emerald-400">{message}</p>}
 
       <Card>
-        <h2 className="mb-3 font-semibold text-zinc-50">Inventaire (non équipé)</h2>
+        <h2 className="font-display mb-3 font-semibold text-slate-50">Inventaire (non équipé)</h2>
         {unequippedItems.length === 0 && (
-          <p className="text-sm text-zinc-500">Aucun objet en réserve.</p>
+          <p className="text-sm text-slate-500">Aucun objet en réserve.</p>
         )}
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {unequippedItems.map((item) => (
-            <li key={item.id} className="rounded-lg border border-zinc-800 px-3 py-2 text-sm">
-              <p className="text-zinc-100">{item.name}</p>
-              <p className="text-xs text-zinc-500">
-                {item.slot} · {item.rarity}
-              </p>
+            <li
+              key={item.id}
+              className={`rounded-lg border px-3 py-2 text-sm ${RARITY_BADGE[item.rarity]}`}
+            >
+              <p className="text-slate-100">{item.name}</p>
+              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                <span>{item.slot}</span>
+                <Badge tone={item.rarity}>{item.rarity}</Badge>
+              </div>
             </li>
           ))}
         </ul>
       </Card>
     </div>
+    </PageTransition>
   );
 }

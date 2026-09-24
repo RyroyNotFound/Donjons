@@ -1,22 +1,26 @@
 import { randomInt } from "@/lib/game/engine/rng";
 import { MONSTERS } from "@/lib/game/content/dungeon";
+import { CLASSES } from "@/lib/game/content/classes";
+import { TALENTS } from "@/lib/game/content/talents";
+import { SPELLS } from "@/lib/game/content/spells";
+import { MASTERIES } from "@/lib/game/content/masteries";
 import {
-  COMMON_SUBCLASSES,
   PITY_EPIQUE_THRESHOLD,
   PITY_LEGENDAIRE_THRESHOLD,
   PITY_RARE_THRESHOLD,
-  RARE_SUBCLASSES,
   RARITY_WEIGHTS,
 } from "@/lib/game/content/gacha";
+import { MAX_COMPONENT_RANK } from "@/lib/game/economy";
 import type { GachaPityState, GachaPullResult, GachaRarity } from "@/types/game";
 
-export const HERO_NAME_POOL = [
-  "Kael", "Mira", "Thane", "Yssa", "Roran", "Sable",
-  "Idris", "Wren", "Corvin", "Liora", "Dorn", "Ashka",
-  "Fenn", "Nyra", "Talan", "Brienne",
-];
+const ALL_CLASS_IDS = CLASSES.map((c) => c.id);
+const ALL_TALENT_IDS = TALENTS.map((t) => t.id);
+const ALL_SPELL_IDS = SPELLS.map((s) => s.id);
+const ALL_MASTERY_IDS = MASTERIES.map((m) => m.id);
 
-const SHARD_AMOUNT: Record<GachaRarity, number> = { commun: 2, rare: 4, epique: 8, legendaire: 15 };
+/** Fallback currency amount when a roll lands on a class already owned, or a spell/talent/mastery
+ *  already at MAX_COMPONENT_RANK. */
+const RANK_TOKEN_FALLBACK: Record<GachaRarity, number> = { commun: 2, rare: 4, epique: 8, legendaire: 15 };
 const GOLD_RANGE: Record<GachaRarity, [number, number]> = {
   commun: [20, 50],
   rare: [60, 120],
@@ -51,33 +55,44 @@ function updatePity(pity: GachaPityState, rarity: GachaRarity): GachaPityState {
   return next;
 }
 
-function pickSubclass(rarity: GachaRarity, rng: () => number): string {
-  const pool = rarity === "commun" ? COMMON_SUBCLASSES : RARE_SUBCLASSES;
-  return pool[randomInt(rng, 0, pool.length - 1)];
+interface RewardContext {
+  unlockedClasses: string[];
+  componentRanks: Record<string, number>;
 }
 
-interface RewardContext {
-  ownedSubclassIds: string[];
-  rosterFull: boolean;
+/** Classes are a simple binary unlock (no rank system yet) — a duplicate falls back to rank tokens. */
+function classOrTokens(rarity: GachaRarity, rng: () => number, unlockedClasses: string[]): GachaPullResult {
+  const refId = ALL_CLASS_IDS[randomInt(rng, 0, ALL_CLASS_IDS.length - 1)];
+  if (!unlockedClasses.includes(refId)) return { rarity, kind: "class", refId };
+  return { rarity, kind: "rankToken", amount: RANK_TOKEN_FALLBACK[rarity] };
+}
+
+/** Picks a random id from `pool`; grants it (new unlock, or a rank-up if already owned) unless it's
+ *  already at MAX_COMPONENT_RANK, in which case it falls back to rank tokens. */
+function componentOrTokens(
+  rarity: GachaRarity,
+  kind: "spell" | "talent" | "mastery",
+  pool: string[],
+  ranks: Record<string, number>,
+  rng: () => number,
+): GachaPullResult {
+  const refId = pool[randomInt(rng, 0, pool.length - 1)];
+  const currentRank = ranks[refId] ?? 0;
+  if (currentRank < MAX_COMPONENT_RANK) return { rarity, kind, refId };
+  return { rarity, kind: "rankToken", amount: RANK_TOKEN_FALLBACK[rarity] };
 }
 
 function rollReward(rarity: GachaRarity, rng: () => number, ctx: RewardContext): GachaPullResult {
-  function heroOrShards(): GachaPullResult {
-    const subclassId = pickSubclass(rarity, rng);
-    if (!ctx.ownedSubclassIds.includes(subclassId) && !ctx.rosterFull) {
-      return { rarity, kind: "hero", subclassId };
-    }
-    return { rarity, kind: "shards", subclassId, amount: SHARD_AMOUNT[rarity] };
+  if (rarity === "legendaire") {
+    return classOrTokens(rarity, rng, ctx.unlockedClasses);
   }
-
-  if (rarity === "legendaire") return heroOrShards();
 
   if (rarity === "epique") {
     if (rng() < 0.5) {
       const monster = MONSTERS[randomInt(rng, 0, MONSTERS.length - 1)];
       return { rarity, kind: "monsterFragment", monsterRefId: monster.id };
     }
-    return heroOrShards();
+    return componentOrTokens(rarity, "talent", ALL_TALENT_IDS, ctx.componentRanks, rng);
   }
 
   if (rarity === "rare") {
@@ -85,7 +100,7 @@ function rollReward(rarity: GachaRarity, rng: () => number, ctx: RewardContext):
       const [min, max] = GOLD_RANGE.rare;
       return { rarity, kind: "gold", amount: randomInt(rng, min, max) };
     }
-    return heroOrShards();
+    return componentOrTokens(rarity, "spell", ALL_SPELL_IDS, ctx.componentRanks, rng);
   }
 
   // commun
@@ -93,7 +108,7 @@ function rollReward(rarity: GachaRarity, rng: () => number, ctx: RewardContext):
     const [min, max] = GOLD_RANGE.commun;
     return { rarity, kind: "gold", amount: randomInt(rng, min, max) };
   }
-  return heroOrShards();
+  return componentOrTokens(rarity, "mastery", ALL_MASTERY_IDS, ctx.componentRanks, rng);
 }
 
 export interface PerformPullsResult {
@@ -101,32 +116,27 @@ export interface PerformPullsResult {
   pity: GachaPityState;
 }
 
-/** Rolls `count` pulls in sequence, carrying pity and roster/ownership state across them. */
+/** Rolls `count` pulls in sequence, carrying pity + ownership/rank state across them. */
 export function performPulls(
   rng: () => number,
   count: number,
   initialPity: GachaPityState,
-  initialOwnedSubclassIds: string[],
-  currentHeroCount: number,
-  maxHeroes: number,
+  initialUnlockedClasses: string[],
+  initialComponentRanks: Record<string, number>,
 ): PerformPullsResult {
   let pity = { ...initialPity };
-  const owned = new Set(initialOwnedSubclassIds);
-  let heroCount = currentHeroCount;
+  const unlockedClasses = [...initialUnlockedClasses];
+  const componentRanks = { ...initialComponentRanks };
   const results: GachaPullResult[] = [];
 
   for (let i = 0; i < count; i++) {
     const rarity = rollRarity(rng, pity);
     pity = updatePity(pity, rarity);
-    const reward = rollReward(rarity, rng, {
-      ownedSubclassIds: [...owned],
-      rosterFull: heroCount >= maxHeroes,
-    });
+    const reward = rollReward(rarity, rng, { unlockedClasses, componentRanks });
 
-    if (reward.kind === "hero" && reward.subclassId) {
-      owned.add(reward.subclassId);
-      heroCount++;
-      reward.heroName = HERO_NAME_POOL[randomInt(rng, 0, HERO_NAME_POOL.length - 1)];
+    if (reward.refId) {
+      if (reward.kind === "class") unlockedClasses.push(reward.refId);
+      else componentRanks[reward.refId] = (componentRanks[reward.refId] ?? 0) + 1;
     }
 
     results.push(reward);

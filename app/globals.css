@@ -1,12 +1,224 @@
 @import "tailwindcss";
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Top-layer view-transition pseudo-elements aren't reached by the `*` rule above. */
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-cinzel);
+}
+
+:root {
+  --ink-950: #0a0712;
+  --ink-900: #120c1f;
+  --ink-800: #191129;
+  --ink-700: #241a3a;
 }
 
 body {
+  position: relative;
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background-color: var(--ink-950);
+  background-image:
+    radial-gradient(ellipse 140% 100% at 50% 50%, transparent 45%, rgba(0, 0, 0, 0.6) 100%),
+    radial-gradient(ellipse 90% 55% at 50% -12%, rgba(139, 92, 246, 0.28), transparent 60%),
+    radial-gradient(ellipse 55% 40% at 95% 5%, rgba(245, 158, 11, 0.10), transparent 60%),
+    radial-gradient(ellipse 60% 45% at -5% 95%, rgba(124, 58, 237, 0.16), transparent 60%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, auto, auto, 26px 26px;
+  background-attachment: fixed, fixed, fixed, fixed, fixed;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+}
+
+/* Fine film-grain overlay for a textured, "engraved" surface rather than
+   flat digital gradients — subtle enough to not affect legibility. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Slow ambient drift layered over the static gradients so the background
+   breathes instead of sitting frozen. Oversized + inset so the transform
+   never reveals an edge. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -10%;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(ellipse 60% 50% at 30% 30%, rgba(245, 158, 11, 0.1), transparent 65%);
+  animation: drift 32s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  from {
+    transform: translate(-2%, -2%) scale(1);
+  }
+  to {
+    transform: translate(2%, 2%) scale(1.05);
+  }
+}
+
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Sprite-sheet frame cycling (components/SpriteAnimation.tsx) — steps() jumps
+   straight between frames instead of tweening, which is what a pixel-art
+   sheet needs. */
+@keyframes sprite-frames {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: calc(-1 * var(--sprite-frame-size) * var(--sprite-frames)) 0;
+  }
+}
+
+/* Subtle stone-dungeon texture, layered like the film grain above (components
+   pass this class alongside their existing bg-[var(--ink-900)]). */
+.bg-dungeon-stone {
+  position: relative;
+}
+.bg-dungeon-stone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image: url("/sprites/tiles/stone-bg.png");
+  background-size: 96px 96px;
+  background-repeat: repeat;
+  image-rendering: pixelated;
+}
+.bg-dungeon-stone > * {
+  position: relative;
+  z-index: 1;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.text-gold-gradient {
+  background-image: linear-gradient(90deg, #fde68a, #f59e0b 45%, #fde68a);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.text-glow-gold {
+  color: #fbcf6b;
+  text-shadow: 0 0 18px rgba(245, 158, 11, 0.35), 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  opacity: 0;
+  animation: rise-in 0.45s ease forwards;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Floating embers (components/EmberField.tsx) */
+@keyframes ember-float {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--ember-opacity, 0.5);
+  }
+  90% {
+    opacity: var(--ember-opacity, 0.5);
+  }
+  100% {
+    transform: translateY(-120px) translateX(var(--ember-drift, 10px));
+    opacity: 0;
+  }
+}
+
+.ember {
+  position: absolute;
+  bottom: 0;
+  width: var(--ember-size, 3px);
+  height: var(--ember-size, 3px);
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(253, 230, 138, 0.9), rgba(245, 158, 11, 0.4) 60%, transparent 100%);
+  animation: ember-float var(--ember-duration, 14s) ease-in infinite;
+  animation-delay: var(--ember-delay, 0s);
+}
+
+/* Resource pill "gain" pulse (components/ResourcePill.tsx) — the value span
+   is keyed on its own value, so React remounting it replays this animation. */
+@keyframes pulse-gain {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+    color: #fde68a;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pulse-gain {
+  display: inline-block;
+  animation: pulse-gain 0.4s ease-out;
+}
+
+.panel-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 158, 11, 0.35) transparent;
+}
+.panel-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.panel-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.35);
+  border-radius: 999px;
 }
 
 /* Gacha reveal animations (app/(game)/gacha) */
@@ -84,4 +296,79 @@ body {
 
 .gacha-card-legendary {
   animation: gacha-legendary-glow 1.6s ease-in-out infinite;
+}
+
+/* Full-conquest banner (app/(game)/donjon/attaquer/raid) */
+@keyframes dungeon-victory-pop {
+  0% { opacity: 0; transform: scale(0.85) translateY(12px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.dungeon-victory-backdrop {
+  animation: rise-in 0.25s ease forwards;
+}
+
+.dungeon-victory-card {
+  animation: dungeon-victory-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Directional page transitions (components/PageTransition.tsx) */
+::view-transition {
+  pointer-events: none;
+}
+
+@keyframes via-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes via-slide {
+  from {
+    translate: var(--slide-offset);
+  }
+  to {
+    translate: 0;
+  }
+}
+
+::view-transition-old(.nav-forward) {
+  --slide-offset: -60px;
+  animation:
+    150ms ease-in both via-fade reverse,
+    400ms ease-in-out both via-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 60px;
+  animation:
+    210ms ease-out 150ms both via-fade,
+    400ms ease-in-out both via-slide;
+}
+
+::view-transition-old(.nav-back) {
+  --slide-offset: 60px;
+  animation:
+    150ms ease-in both via-fade reverse,
+    400ms ease-in-out both via-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -60px;
+  animation:
+    210ms ease-out 150ms both via-fade,
+    400ms ease-in-out both via-slide;
+}
+
+/* Keeps the game nav header fixed in place during directional slides. */
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
 }

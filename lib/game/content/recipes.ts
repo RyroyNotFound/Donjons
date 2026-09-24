@@ -15,7 +15,7 @@ export const RECIPES: RecipeDefinition[] = [
       name: "Épée en fer",
       slot: "weapon",
       rarity: "commun",
-      statBonus: { atk: 4 },
+      statBonus: { atkPhys: 4 },
     },
   },
   {
@@ -29,7 +29,7 @@ export const RECIPES: RecipeDefinition[] = [
       name: "Armure de cuir cloutée",
       slot: "armor",
       rarity: "commun",
-      statBonus: { def: 3, hp: 10 },
+      statBonus: { defPhys: 3, hp: 10 },
     },
   },
   {
@@ -43,7 +43,7 @@ export const RECIPES: RecipeDefinition[] = [
       name: "Amulette d'essence",
       slot: "trinket",
       rarity: "rare",
-      statBonus: { atk: 2, def: 2, spd: 2 },
+      statBonus: { atkMag: 2, defMag: 2, spd: 2 },
     },
   },
 ];

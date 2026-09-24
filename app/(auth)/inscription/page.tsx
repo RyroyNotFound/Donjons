@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
+import { Button } from "@/components/Button";
+import { Label, inputClass } from "@/components/Field";
+import { PageTransition } from "@/components/PageTransition";
 
 export default function InscriptionPage() {
   const router = useRouter();
@@ -35,45 +38,43 @@ export default function InscriptionPage() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-zinc-50">Créer un compte</h1>
+      <h1 className="font-display text-2xl font-bold text-slate-50">Créer un compte</h1>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
-          <label className="mb-1 block text-sm text-zinc-400">Email</label>
+          <Label>Email</Label>
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-zinc-100 outline-none focus:border-amber-500"
+            className={inputClass}
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-zinc-400">Mot de passe</label>
+          <Label>Mot de passe</Label>
           <input
             type="password"
             required
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-zinc-100 outline-none focus:border-amber-500"
+            className={inputClass}
           />
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-lg bg-amber-500 px-3 py-2 font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Création..." : "Créer mon compte"}
-        </button>
+        </Button>
       </form>
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-slate-400">
         Déjà un compte ?{" "}
         <Link href="/connexion" className="text-amber-400 hover:underline">
           Se connecter
         </Link>
       </p>
     </div>
+    </PageTransition>
   );
 }

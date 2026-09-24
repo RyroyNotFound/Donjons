@@ -1,6 +1,7 @@
 import { createRng, randomInt } from "@/lib/game/engine/rng";
 import { getMonster } from "@/lib/game/content/dungeon";
-import type { HeroStats, ZoneDefinition } from "@/types/game";
+import { tryGetSpell } from "@/lib/game/content/spells";
+import type { ArenaAbilityTag, HeroStats, ZoneDefinition } from "@/types/game";
 
 export const ARENA_WIDTH = 800;
 export const ARENA_HEIGHT = 500;
@@ -13,39 +14,49 @@ const PROJECTILE_RADIUS = 5;
 const PROJECTILE_MAX_LIFE_SEC = 1;
 
 /**
- * Per-subclass party bonuses, applied in the arena based on how many heroes
- * of that subclass are in the selected team. Each subclass grants a
- * distinct effect so team composition matters beyond raw stats:
- * - Guerrier: melee cleave near the player on every attack
- * - Archer: one extra projectile per archer
- * - Prêtre: passive HP regen over time
- * - Druide: faster attack pace (shorter cooldown)
- * - Paladin: flat damage buff to the whole party's attacks
- * - Colosse: lifesteal on damage dealt
+ * Party bonuses granted by equipped spells (lib/game/content/spells.ts), applied in the arena
+ * based on how many party members have a spell with that ability tag equipped:
+ * - cleave: melee hit near the player on every attack (Frappe de zone)
+ * - multishot: one extra projectile per hero (Tir multiple)
+ * - regen: passive HP regen over time (Lumière curative)
+ * - haste: faster attack pace, shorter cooldown (Instinct sauvage)
+ * - dmgbuff: flat damage buff to the whole party's attacks (Bénédiction du rempart)
+ * - lifesteal: converts a share of damage dealt into HP (Morsure vampirique)
  */
-export interface PartyAbilities {
-  guerrier: number;
-  archer: number;
-  pretre: number;
-  druide: number;
-  paladin: number;
-  colosse: number;
-}
+export type PartyAbilities = Record<ArenaAbilityTag, number>;
 
 export const EMPTY_ABILITIES: PartyAbilities = {
-  guerrier: 0,
-  archer: 0,
-  pretre: 0,
-  druide: 0,
-  paladin: 0,
-  colosse: 0,
+  cleave: 0,
+  multishot: 0,
+  regen: 0,
+  haste: 0,
+  dmgbuff: 0,
+  lifesteal: 0,
 };
 
-/** Counts how many heroes of each ability-granting subclass are in the party. */
-export function computePartyAbilities(subclassIds: string[]): PartyAbilities {
+/** A spell works regardless of the caster's class; matching the spell's own class makes its
+ *  arena contribution stronger (same idea as raid combat's RAID_MAGNITUDE bonus). */
+const CLASS_MATCH_WEIGHT = 1.3;
+
+export interface ArenaPartyMember {
+  equippedSpellIds: string[];
+  classId?: string;
+}
+
+/** Sums, across the party, each hero's contribution to every arena-ability-granting spell they have
+ *  equipped (1 per hero per distinct tag, boosted to CLASS_MATCH_WEIGHT when that spell's class
+ *  matches the hero's own). */
+export function computePartyAbilities(party: ArenaPartyMember[]): PartyAbilities {
   const abilities = { ...EMPTY_ABILITIES };
-  for (const id of subclassIds) {
-    if (id in abilities) abilities[id as keyof PartyAbilities] += 1;
+  for (const member of party) {
+    const weightByTag = new Map<ArenaAbilityTag, number>();
+    for (const spellId of member.equippedSpellIds) {
+      const spell = tryGetSpell(spellId);
+      if (!spell) continue;
+      const weight = spell.classId && spell.classId === member.classId ? CLASS_MATCH_WEIGHT : 1;
+      weightByTag.set(spell.arenaAbilityTag, Math.max(weightByTag.get(spell.arenaAbilityTag) ?? 0, weight));
+    }
+    for (const [tag, weight] of weightByTag) abilities[tag] += weight;
   }
   return abilities;
 }
@@ -106,8 +117,8 @@ export function createInitialState(
   abilities: PartyAbilities = EMPTY_ABILITIES,
 ): ArenaState {
   const baseCooldown = Math.max(0.25, 1.1 - partyStats.spd * 0.01);
-  const attackCooldownSec = Math.max(0.15, baseCooldown * (1 - 0.12 * abilities.druide));
-  const attackDamage = Math.max(4, partyStats.atk) * (1 + 0.1 * abilities.paladin);
+  const attackCooldownSec = Math.max(0.15, baseCooldown * (1 - 0.12 * abilities.haste));
+  const attackDamage = Math.max(4, partyStats.atkPhys + partyStats.atkMag) * (1 + 0.1 * abilities.dmgbuff);
 
   return {
     player: {
@@ -134,11 +145,11 @@ export function createInitialState(
   };
 }
 
-/** Applies damage to an enemy, triggering Colosse lifesteal if the party has any. */
+/** Applies damage to an enemy, triggering lifesteal if the party has any. */
 function dealDamage(state: ArenaState, enemy: ArenaEnemy, amount: number) {
   enemy.hp -= amount;
-  if (state.abilities.colosse > 0) {
-    const drainRatio = Math.min(0.6, 0.12 * state.abilities.colosse);
+  if (state.abilities.lifesteal > 0) {
+    const drainRatio = Math.min(0.6, 0.12 * state.abilities.lifesteal);
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + amount * drainRatio);
   }
 }
@@ -160,7 +171,7 @@ function spawnWave(state: ArenaState, zone: ZoneDefinition, rng: () => number) {
       hp: def.stats.hp * 0.4,
       maxHp: def.stats.hp * 0.4,
       speed: 35 + def.stats.spd * 1.5,
-      contactDamage: Math.max(2, def.stats.atk * 0.35),
+      contactDamage: Math.max(2, (def.stats.atkPhys + def.stats.atkMag) * 0.35),
       contactCooldown: 0.6,
       contactTimer: 0,
     });
@@ -188,8 +199,8 @@ export function stepArena(
   state.healTickTimer -= dt;
   if (state.healTickTimer <= 0) {
     state.healTickTimer += 1;
-    if (state.abilities.pretre > 0) {
-      state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.abilities.pretre * 4);
+    if (state.abilities.regen > 0) {
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.abilities.regen * 4);
     }
   }
 
@@ -226,7 +237,7 @@ export function stepArena(
       .sort((a, b) => a.dist - b.dist);
 
     if (inRange.length > 0) {
-      const shotCount = 1 + state.abilities.archer;
+      const shotCount = 1 + state.abilities.multishot;
       for (let i = 0; i < shotCount; i++) {
         const target = inRange[Math.min(i, inRange.length - 1)].enemy;
         const dx = target.x - state.player.x;
@@ -243,8 +254,8 @@ export function stepArena(
         });
       }
 
-      if (state.abilities.guerrier > 0) {
-        const cleaveDamage = state.player.attackDamage * 0.5 * state.abilities.guerrier;
+      if (state.abilities.cleave > 0) {
+        const cleaveDamage = state.player.attackDamage * 0.5 * state.abilities.cleave;
         for (const enemy of state.enemies) {
           const dist = Math.hypot(enemy.x - state.player.x, enemy.y - state.player.y);
           if (dist <= MELEE_CLEAVE_RADIUS_PX) dealDamage(state, enemy, cleaveDamage);

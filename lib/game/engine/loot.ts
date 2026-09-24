@@ -45,7 +45,7 @@ function rollDroppedItem(
     (2 + zoneDifficulty / 15) * RARITY_MULTIPLIER[rarity],
   );
 
-  const statKeys: (keyof HeroStats)[] = ["atk", "def", "hp", "spd"];
+  const statKeys: (keyof HeroStats)[] = ["atkPhys", "atkMag", "defPhys", "defMag", "hp", "spd"];
   const primaryStat = statKeys[randomInt(rng, 0, statKeys.length - 1)];
   const statBonus: Partial<HeroStats> = {
     [primaryStat]: primaryStat === "hp" ? power * 3 : power,

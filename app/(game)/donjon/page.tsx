@@ -3,29 +3,67 @@
 import { useState } from "react";
 import { useGameData } from "@/lib/game/GameDataProvider";
 import { callApi } from "@/lib/api/client";
+import { BOSSES, ENTRANCE_CELL, MONSTERS, TRAPS, TREASURE_ROOM_COST } from "@/lib/game/content/dungeon";
 import {
-  BOSSES,
-  DUNGEON_POINT_BUDGET,
-  MONSTERS,
-  TRAPS,
-} from "@/lib/game/content/dungeon";
+  garrisonCapacityForLevel,
+  maxOccupantsForLevel,
+  maxRoomsForLevel,
+  pointBudgetForLevel,
+} from "@/lib/game/content/dungeonUpgrades";
+import { findDisconnectedRooms, isAdjacent, roomKey } from "@/lib/game/engine/dungeonLayout";
 import { Card } from "@/components/Card";
-import type { Dungeon, DungeonRoomKind, DungeonRoomSlot } from "@/types/game";
+import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/Button";
+import { Badge } from "@/components/Badge";
+import { Panel } from "@/components/Panel";
+import { PageTransition } from "@/components/PageTransition";
+import { SpriteAnimation } from "@/components/SpriteAnimation";
+import { MONSTER_SPRITE } from "@/lib/ui/monsterSprites";
+import { DungeonGridEditor } from "@/components/dungeon/DungeonGridEditor";
+import { RoomInspector } from "@/components/dungeon/RoomInspector";
+import { GarrisonPicker } from "@/components/dungeon/GarrisonPicker";
+import type { Dungeon, DungeonRoomCell, DungeonUpgrades } from "@/types/game";
 
-function emptyRooms(): DungeonRoomSlot[] {
-  return [1, 2, 3].map((slot) => ({ slot, kind: "empty" as DungeonRoomKind }));
+function entranceRoom(): DungeonRoomCell[] {
+  return [{ ...ENTRANCE_CELL, type: "empty" }];
 }
 
-function roomCost(room: DungeonRoomSlot): number {
-  if (room.kind === "trap") return TRAPS.find((t) => t.id === room.refId)?.cost ?? 0;
-  if (room.kind === "monster") return MONSTERS.find((m) => m.id === room.refId)?.cost ?? 0;
-  return 0;
+function pointsSpentOf(rooms: DungeonRoomCell[]): number {
+  let total = 0;
+  for (const room of rooms) {
+    if (room.type === "trap") {
+      total += (room.trapIds ?? []).reduce(
+        (sum, id) => sum + (TRAPS.find((t) => t.id === id)?.cost ?? 0),
+        0,
+      );
+    } else if (room.type === "monster") {
+      total += (room.monsterRefIds ?? []).reduce((sum, id) => {
+        const monster = MONSTERS.find((m) => m.id === id) ?? BOSSES.find((m) => m.id === id);
+        return sum + (monster?.cost ?? 0);
+      }, 0);
+    } else if (room.type === "treasure") {
+      total += TREASURE_ROOM_COST;
+    }
+  }
+  return total;
 }
+
+const DEFAULT_UPGRADE_LEVELS: DungeonUpgrades["levels"] = {
+  expansion: 0,
+  architecture: 0,
+  defenderVigor: 0,
+  trapcraft: 0,
+  beastMastery: 0,
+  hazardDensity: 0,
+  vaultCapacity: 0,
+  heroSlots: 0,
+};
 
 export default function DonjonPage() {
-  const { dungeon } = useGameData();
-  const [rooms, setRooms] = useState<DungeonRoomSlot[]>(emptyRooms());
-  const [bossRefId, setBossRefId] = useState<string>("");
+  const { dungeon, profile, heroes, dungeonUpgrades } = useGameData();
+  const [rooms, setRooms] = useState<DungeonRoomCell[]>(entranceRoom());
+  const [garrisonHeroIds, setGarrisonHeroIds] = useState<string[]>([]);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -37,15 +75,66 @@ export default function DonjonPage() {
   if (dungeon && dungeon !== loadedFrom) {
     setLoadedFrom(dungeon);
     setRooms(dungeon.rooms);
-    setBossRefId(dungeon.bossRefId ?? "");
+    setGarrisonHeroIds(dungeon.garrisonHeroIds);
   }
 
-  const pointsSpent = rooms.reduce((sum, r) => sum + roomCost(r), 0);
-  const overBudget = pointsSpent > DUNGEON_POINT_BUDGET;
+  const levels = dungeonUpgrades?.levels ?? DEFAULT_UPGRADE_LEVELS;
+  const maxRooms = maxRoomsForLevel(levels.expansion);
+  const budget = pointBudgetForLevel(levels.architecture);
+  const maxOccupants = maxOccupantsForLevel(levels.hazardDensity);
+  const garrisonCapacity = garrisonCapacityForLevel(levels.defenderVigor);
 
-  function updateRoom(slot: number, kind: DungeonRoomKind, refId?: string) {
+  const roomCount = rooms.length - 1;
+  const pointsSpent = pointsSpentOf(rooms);
+  const treasureRoomCount = rooms.filter((r) => r.type === "treasure").length;
+  const overBudget = pointsSpent > budget;
+  const overRoomCap = roomCount > maxRooms;
+  const treasureCountValid = treasureRoomCount >= 1 && treasureRoomCount <= 4;
+  const capturedMonsters = profile?.capturedMonsters ?? {};
+  const selectedRoom = rooms.find((r) => roomKey(r) === selectedKey) ?? null;
+  const isEntranceSelected =
+    selectedRoom && selectedRoom.row === ENTRANCE_CELL.row && selectedRoom.col === ENTRANCE_CELL.col;
+
+  function updateRoom(next: DungeonRoomCell) {
     setSaved(false);
-    setRooms((prev) => prev.map((r) => (r.slot === slot ? { slot, kind, refId } : r)));
+    setRooms((prev) => prev.map((r) => (roomKey(r) === roomKey(next) ? next : r)));
+  }
+
+  function canRemoveRoom(cell: DungeonRoomCell): boolean {
+    const remaining = rooms.filter((r) => roomKey(r) !== roomKey(cell));
+    return findDisconnectedRooms(remaining).length === 0;
+  }
+
+  function removeSelectedRoom() {
+    if (!selectedRoom) return;
+    setSaved(false);
+    setRooms((prev) => prev.filter((r) => roomKey(r) !== roomKey(selectedRoom)));
+    setSelectedKey(null);
+  }
+
+  function handleCellClick(row: number, col: number) {
+    const key = `${row},${col}`;
+    const existing = rooms.find((r) => roomKey(r) === key);
+    if (existing) {
+      setSelectedKey(key);
+      return;
+    }
+    if (!rooms.some((r) => isAdjacent(r, { row, col }))) return;
+    if (roomCount >= maxRooms) {
+      setError(`Plafond de salles atteint (${maxRooms}). Améliorez "Expansion" pour en construire plus.`);
+      return;
+    }
+    setSaved(false);
+    setError(null);
+    setRooms((prev) => [...prev, { row, col, type: "empty" }]);
+    setSelectedKey(key);
+  }
+
+  function toggleGarrisonHero(heroId: string) {
+    setSaved(false);
+    setGarrisonHeroIds((prev) =>
+      prev.includes(heroId) ? prev.filter((id) => id !== heroId) : [...prev, heroId],
+    );
   }
 
   async function save() {
@@ -53,10 +142,7 @@ export default function DonjonPage() {
     setSaving(true);
     setSaved(false);
     try {
-      await callApi("/api/dungeon/configure", {
-        rooms,
-        bossRefId: bossRefId || undefined,
-      });
+      await callApi("/api/dungeon/configure", { rooms, garrisonHeroIds });
       setSaved(true);
     } catch (e) {
       setError((e as Error).message);
@@ -65,94 +151,102 @@ export default function DonjonPage() {
     }
   }
 
+  const canSave = !overBudget && !overRoomCap && treasureCountValid && garrisonHeroIds.length <= garrisonCapacity;
+
   return (
+    <PageTransition>
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-50">Mon donjon</h1>
-        <p className={`text-sm ${overBudget ? "text-red-400" : "text-zinc-400"}`}>
-          Budget : {pointsSpent}/{DUNGEON_POINT_BUDGET} points
-        </p>
-      </div>
+      <PageHeader
+        title="Mon donjon"
+        subtitle={
+          <span className="flex flex-wrap gap-3">
+            <span className={overBudget ? "text-red-400" : "text-slate-400"}>
+              Budget : {pointsSpent}/{budget} pts
+            </span>
+            <span className={overRoomCap ? "text-red-400" : "text-slate-400"}>
+              Salles : {roomCount}/{maxRooms}
+            </span>
+            <span className={treasureCountValid ? "text-slate-400" : "text-red-400"}>
+              Trésors : {treasureRoomCount}/4
+            </span>
+          </span>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {rooms.map((room) => (
-          <Card key={room.slot}>
-            <p className="mb-2 text-sm font-semibold text-zinc-50">Salle {room.slot}</p>
-            <select
-              value={room.kind}
-              onChange={(e) => {
-                const kind = e.target.value as DungeonRoomKind;
-                updateRoom(room.slot, kind, undefined);
-              }}
-              className="mb-2 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100"
-            >
-              <option value="empty">Vide</option>
-              <option value="trap">Piège</option>
-              <option value="monster">Monstre</option>
-            </select>
+      <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
+        <Card textured>
+          <p className="font-display mb-3 text-sm font-semibold text-slate-50">
+            Disposition des salles
+          </p>
+          <DungeonGridEditor rooms={rooms} selectedKey={selectedKey} onCellClick={handleCellClick} />
+          <p className="mt-3 text-xs text-slate-500">
+            Cliquez une case adjacente à une salle existante pour en construire une nouvelle. Chaque
+            salle doit être reliée à l&apos;entrée 🚪.
+          </p>
+        </Card>
 
-            {room.kind === "trap" && (
-              <select
-                value={room.refId ?? ""}
-                onChange={(e) => updateRoom(room.slot, "trap", e.target.value)}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100"
-              >
-                <option value="">Choisir un piège</option>
-                {TRAPS.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.cost} pts)
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {room.kind === "monster" && (
-              <select
-                value={room.refId ?? ""}
-                onChange={(e) => updateRoom(room.slot, "monster", e.target.value)}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100"
-              >
-                <option value="">Choisir un monstre</option>
-                {MONSTERS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.cost} pts)
-                  </option>
-                ))}
-              </select>
-            )}
-          </Card>
-        ))}
+        <Card textured accent={selectedRoom ? "gold" : "default"}>
+          <p className="font-display mb-3 text-sm font-semibold text-slate-50">Salle sélectionnée</p>
+          {!selectedRoom && <p className="text-sm text-slate-500">Sélectionnez une salle sur la grille.</p>}
+          {selectedRoom && isEntranceSelected && (
+            <p className="text-sm text-slate-500">L&apos;entrée reste toujours vide.</p>
+          )}
+          {selectedRoom && !isEntranceSelected && (
+            <RoomInspector
+              room={selectedRoom}
+              maxOccupants={maxOccupants}
+              trapcraftLevel={levels.trapcraft}
+              capturedMonsters={capturedMonsters}
+              canRemove={canRemoveRoom(selectedRoom)}
+              onChange={updateRoom}
+              onRemove={removeSelectedRoom}
+            />
+          )}
+        </Card>
       </div>
 
       <Card>
-        <p className="mb-2 text-sm font-semibold text-zinc-50">Boss (optionnel)</p>
-        <select
-          value={bossRefId}
-          onChange={(e) => {
-            setSaved(false);
-            setBossRefId(e.target.value);
-          }}
-          className="w-full max-w-xs rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100"
-        >
-          <option value="">Aucun boss</option>
-          {BOSSES.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        <p className="font-display mb-3 text-sm font-semibold text-slate-50">Garnison</p>
+        <GarrisonPicker
+          heroes={heroes}
+          selectedIds={garrisonHeroIds}
+          capacity={garrisonCapacity}
+          onToggle={toggleGarrisonHero}
+        />
+        <p className="mt-2 text-xs text-slate-500">
+          Les héros en garnison combattent aux côtés des monstres de vos salles lors d&apos;un raid.
+        </p>
+      </Card>
+
+      <Card>
+        <p className="font-display mb-3 text-sm font-semibold text-slate-50">Bestiaire capturé</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {MONSTERS.map((m) => {
+            const count = capturedMonsters[m.id] ?? 0;
+            const owned = count > 0;
+            return (
+              <Panel key={m.id} tone={owned ? "owned" : "neutral"} padding="sm" dim={!owned}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <SpriteAnimation sheet={MONSTER_SPRITE[m.id]} frames={4} frameSize={32} className="h-6 w-6" />
+                    <span className={owned ? "text-slate-100" : "text-slate-500"}>{m.name}</span>
+                  </div>
+                  {owned ? <Badge tone="success">x{count}</Badge> : <Badge tone="neutral">🔒</Badge>}
+                </div>
+                <p className="mt-0.5 text-xs text-slate-500">{m.description}</p>
+              </Panel>
+            );
+          })}
+        </div>
       </Card>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
       {saved && <p className="text-sm text-emerald-400">Donjon enregistré !</p>}
 
-      <button
-        onClick={save}
-        disabled={saving || overBudget}
-        className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <Button onClick={save} disabled={saving || !canSave}>
         {saving ? "Enregistrement..." : "Enregistrer le donjon"}
-      </button>
+      </Button>
     </div>
+    </PageTransition>
   );
 }

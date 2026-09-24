@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ProgressBar } from "@/components/ProgressBar";
+import { tryGetClass } from "@/lib/game/content/classes";
+import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
+import { MONSTER_SPRITE } from "@/lib/ui/monsterSprites";
 import {
   ARENA_CONSTANTS,
   ARENA_HEIGHT,
@@ -24,15 +28,39 @@ const KEY_MAP: Record<string, "up" | "down" | "left" | "right"> = {
   arrowright: "right",
 };
 
-// No art pipeline yet, so emoji glyphs stand in for sprites — swap these for
-// real images later without touching the simulation in lib/game/arena/engine.ts.
-const PLAYER_SPRITE = "🧙";
-const MONSTER_SPRITES: Record<string, string> = {
-  "gobelin-eclaireur": "👺",
-  "golem-de-pierre": "🗿",
-  "araignee-venimeuse": "🕷️",
-  "seigneur-des-ombres": "👹",
-};
+const SPRITE_FRAMES = 4;
+const SPRITE_FRAME_SIZE = 32;
+const SPRITE_FRAME_DURATION = 0.15; // seconds per frame, matches SpriteAnimation's default pace
+
+function loadImage(src: string): HTMLImageElement {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+/** Draws one frame of a horizontal sprite sheet, pixelated, cycling by elapsed time. */
+function drawSprite(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  elapsedSec: number,
+  x: number,
+  y: number,
+  size: number,
+) {
+  if (!img.complete || img.naturalWidth === 0) return;
+  const frame = Math.floor(elapsedSec / SPRITE_FRAME_DURATION) % SPRITE_FRAMES;
+  ctx.drawImage(
+    img,
+    frame * SPRITE_FRAME_SIZE,
+    0,
+    SPRITE_FRAME_SIZE,
+    SPRITE_FRAME_SIZE,
+    x - size / 2,
+    y - size / 2,
+    size,
+    size,
+  );
+}
 
 function createBackgroundCanvas(): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -73,12 +101,12 @@ function createBackgroundCanvas(): HTMLCanvasElement {
 
 function describeAbilities(abilities: PartyAbilities): string[] {
   const labels: string[] = [];
-  if (abilities.guerrier > 0) labels.push(`⚔️ Frappe proche x${abilities.guerrier}`);
-  if (abilities.archer > 0) labels.push(`🏹 +${abilities.archer} projectile${abilities.archer > 1 ? "s" : ""}`);
-  if (abilities.pretre > 0) labels.push(`✨ Soin passif x${abilities.pretre}`);
-  if (abilities.druide > 0) labels.push(`🍃 Cadence +${Math.min(60, abilities.druide * 12)}%`);
-  if (abilities.paladin > 0) labels.push(`🛡️ Dégâts +${Math.round(abilities.paladin * 10)}%`);
-  if (abilities.colosse > 0) labels.push(`🩸 Vol de vie ${Math.min(60, abilities.colosse * 12)}%`);
+  if (abilities.cleave > 0) labels.push(`⚔️ Frappe proche x${abilities.cleave}`);
+  if (abilities.multishot > 0) labels.push(`🏹 +${abilities.multishot} projectile${abilities.multishot > 1 ? "s" : ""}`);
+  if (abilities.regen > 0) labels.push(`✨ Soin passif x${abilities.regen}`);
+  if (abilities.haste > 0) labels.push(`🍃 Cadence +${Math.min(60, abilities.haste * 12)}%`);
+  if (abilities.dmgbuff > 0) labels.push(`🛡️ Dégâts +${Math.round(abilities.dmgbuff * 10)}%`);
+  if (abilities.lifesteal > 0) labels.push(`🩸 Vol de vie ${Math.min(60, abilities.lifesteal * 12)}%`);
   return labels;
 }
 
@@ -86,7 +114,12 @@ function draw(
   ctx: CanvasRenderingContext2D,
   state: ArenaState,
   background: HTMLCanvasElement | null,
+  monsterImages: Record<string, HTMLImageElement>,
+  playerImage: HTMLImageElement,
+  playerTint: string,
 ) {
+  ctx.imageSmoothingEnabled = false;
+
   if (background) {
     ctx.drawImage(background, 0, 0);
   } else {
@@ -104,9 +137,6 @@ function draw(
   }
   ctx.shadowBlur = 0;
 
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
   for (const enemy of state.enemies) {
     const barWidth = ARENA_CONSTANTS.ENEMY_RADIUS * 2;
     const ratio = Math.max(0, enemy.hp / enemy.maxHp);
@@ -120,12 +150,15 @@ function draw(
       3,
     );
 
-    ctx.font = "26px sans-serif";
-    ctx.fillText(MONSTER_SPRITES[enemy.refId] ?? "👾", enemy.x, enemy.y);
+    const img = monsterImages[enemy.refId];
+    if (img) {
+      drawSprite(ctx, img, state.elapsedSec, enemy.x, enemy.y, ARENA_CONSTANTS.ENEMY_RADIUS * 2.4);
+    }
   }
 
-  ctx.font = "32px sans-serif";
-  ctx.fillText(PLAYER_SPRITE, state.player.x, state.player.y);
+  ctx.filter = playerTint;
+  drawSprite(ctx, playerImage, state.elapsedSec, state.player.x, state.player.y, ARENA_CONSTANTS.PLAYER_RADIUS * 2.6);
+  ctx.filter = "none";
 }
 
 interface ArenaGameProps {
@@ -134,14 +167,22 @@ interface ArenaGameProps {
   abilities: PartyAbilities;
   seed: string;
   onFinish: (result: ArenaRunResult) => void;
+  /** classId of the party's lead hero, used to pick the on-screen sprite/tint. Falls back to the tank sprite. */
+  leaderClassId?: string | null;
 }
 
-export function ArenaGame({ zone, partyStats, abilities, seed, onFinish }: ArenaGameProps) {
+export function ArenaGame({ zone, partyStats, abilities, seed, onFinish, leaderClassId }: ArenaGameProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const backgroundRef = useRef<HTMLCanvasElement | null>(null);
   const stateRef = useRef<ArenaState>(createInitialState(partyStats, abilities));
   const rngRef = useRef(createArenaRng(seed));
   const pressedRef = useRef(new Set<"up" | "down" | "left" | "right">());
+  const leaderClass = leaderClassId ? tryGetClass(leaderClassId) : null;
+  const playerTint = leaderClass ? CLASS_TINT[leaderClass.id] : "none";
+  const [playerImage] = useState(() => loadImage(HERO_SPRITE_BY_ROLE[leaderClass?.role ?? "TANK"]));
+  const [monsterImages] = useState<Record<string, HTMLImageElement>>(() =>
+    Object.fromEntries(Object.entries(MONSTER_SPRITE).map(([id, src]) => [id, loadImage(src)])),
+  );
   const finishedRef = useRef(false);
   const [hud, setHud] = useState({ hp: partyStats.hp, maxHp: partyStats.hp, elapsedSec: 0, killCount: 0 });
 
@@ -185,7 +226,7 @@ export function ArenaGame({ zone, partyStats, abilities, seed, onFinish }: Arena
       };
 
       const state = stepArena(stateRef.current, dt, input, zone, rngRef.current);
-      draw(ctx!, state, backgroundRef.current);
+      draw(ctx!, state, backgroundRef.current, monsterImages, playerImage, playerTint);
 
       hudThrottle += dt;
       if (hudThrottle > 0.1) {
@@ -236,13 +277,16 @@ export function ArenaGame({ zone, partyStats, abilities, seed, onFinish }: Arena
           ))}
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-300">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-300">
         <div className="flex items-center gap-2">
-          <span className="text-zinc-500">PV</span>
-          <div className="h-2 w-32 overflow-hidden rounded-full bg-zinc-800">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: `${Math.max(0, (hud.hp / hud.maxHp) * 100)}%` }}
+          <span className="text-slate-500">PV</span>
+          <div className="w-32">
+            <ProgressBar
+              value={hud.hp}
+              max={hud.maxHp}
+              colorClassName="from-emerald-400 to-emerald-600"
+              glowClassName="shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+              label="Points de vie"
             />
           </div>
           <span>
@@ -250,15 +294,15 @@ export function ArenaGame({ zone, partyStats, abilities, seed, onFinish }: Arena
           </span>
         </div>
         <span>Temps restant : {Math.ceil(remaining)}s</span>
-        <span>Kills : {hud.killCount}</span>
+        <span className="text-amber-300">Kills : {hud.killCount}</span>
       </div>
       <canvas
         ref={canvasRef}
         width={ARENA_WIDTH}
         height={ARENA_HEIGHT}
-        className="w-full max-w-full rounded-xl border border-zinc-800"
+        className="w-full max-w-full rounded-xl border border-amber-500/20 shadow-lg shadow-black/50"
       />
-      <p className="text-xs text-zinc-500">Déplacement : WASD ou flèches. L&apos;attaque est automatique.</p>
+      <p className="text-xs text-slate-500">Déplacement : WASD ou flèches. L&apos;attaque est automatique.</p>
     </div>
   );
 }

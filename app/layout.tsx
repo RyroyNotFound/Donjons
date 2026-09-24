@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Cinzel } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { GameDataProvider } from "@/lib/game/GameDataProvider";
+import { EmberField } from "@/components/EmberField";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,6 +15,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const cinzel = Cinzel({
+  variable: "--font-cinzel",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "Donjons",
   description: "Défendez votre donjon, envoyez vos héros au combat.",
@@ -23,9 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cinzel.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
+      <body className="min-h-full flex flex-col text-slate-100">
+        <EmberField />
         <AuthProvider>
           <GameDataProvider>{children}</GameDataProvider>
         </AuthProvider>
