@@ -17,6 +17,8 @@ interface GameDataValue {
   loading: boolean;
   /** Set when the profile could not be loaded (bootstrap or a listener failed). */
   error: string | null;
+  /** Technical detail of the failure (which source, error code), shown small for bug reports. */
+  errorDetail: string | null;
   /** Re-runs bootstrap and re-subscribes every listener after an error. */
   retry: () => void;
 }
@@ -30,6 +32,7 @@ const EMPTY_STATE: GameDataValue = {
   expeditions: [],
   loading: false,
   error: null,
+  errorDetail: null,
   retry: () => {},
 };
 
@@ -54,11 +57,14 @@ export function GameDataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const fail = (err: unknown) => {
-      console.error(err);
-      setState((prev) => ({ ...prev, error: LOAD_ERROR }));
+    const fail = (source: string) => (err: unknown) => {
+      console.error(source, err);
+      const { code, message } = (err ?? {}) as { code?: string; message?: string };
+      const detail = `${source} : ${code ?? message ?? String(err)}`;
+      // Keep the first failure: later ones are usually knock-on effects.
+      setState((prev) => (prev.error ? prev : { ...prev, error: LOAD_ERROR, errorDetail: detail }));
     };
-    callApi("/api/bootstrap").catch(fail);
+    callApi("/api/bootstrap").catch(fail("bootstrap"));
 
     const unsubscribers = [
       onSnapshot(doc(db, "users", user.uid), (snap) => {
@@ -67,22 +73,22 @@ export function GameDataProvider({ children }: { children: React.ReactNode }) {
           profile: (snap.data() as UserProfile) ?? null,
           loading: false,
         }));
-      }, fail),
+      }, fail("users")),
       onSnapshot(query(collection(db, "heroes"), where("ownerId", "==", user.uid)), (snap) => {
         setState((prev) => ({ ...prev, heroes: snap.docs.map((d) => d.data() as Hero) }));
-      }, fail),
+      }, fail("heroes")),
       onSnapshot(query(collection(db, "items"), where("ownerId", "==", user.uid)), (snap) => {
         setState((prev) => ({ ...prev, items: snap.docs.map((d) => d.data() as Item) }));
-      }, fail),
+      }, fail("items")),
       onSnapshot(doc(db, "dungeons", user.uid), (snap) => {
         setState((prev) => ({ ...prev, dungeon: (snap.data() as Dungeon) ?? null }));
-      }, fail),
+      }, fail("dungeons")),
       onSnapshot(doc(db, "dungeonUpgrades", user.uid), (snap) => {
         setState((prev) => ({
           ...prev,
           dungeonUpgrades: (snap.data() as DungeonUpgrades) ?? null,
         }));
-      }, fail),
+      }, fail("dungeonUpgrades")),
       onSnapshot(
         query(collection(db, "expeditions"), where("ownerId", "==", user.uid)),
         (snap) => {
@@ -91,7 +97,7 @@ export function GameDataProvider({ children }: { children: React.ReactNode }) {
             expeditions: snap.docs.map((d) => d.data() as Expedition),
           }));
         },
-        fail,
+        fail("expeditions"),
       ),
     ];
 
@@ -101,7 +107,7 @@ export function GameDataProvider({ children }: { children: React.ReactNode }) {
   const value: GameDataValue = {
     ...state,
     retry: () => {
-      setState((prev) => ({ ...prev, error: null }));
+      setState((prev) => ({ ...prev, error: null, errorDetail: null }));
       setAttempt((n) => n + 1);
     },
   };

@@ -111,7 +111,7 @@ function BurgerIcon({ close = false }: { close?: boolean }) {
 
 export default function GameLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const { profile, error: loadError, retry } = useGameData();
+  const { profile, error: loadError, errorDetail, retry } = useGameData();
   const router = useRouter();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -145,6 +145,7 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="max-w-md text-slate-300">{loadError}</p>
+        {errorDetail && <p className="font-mono text-xs text-slate-500">{errorDetail}</p>}
         <div className="flex gap-3">
           <button type="button" onClick={retry} className={buttonClasses("primary")}>
             Réessayer
