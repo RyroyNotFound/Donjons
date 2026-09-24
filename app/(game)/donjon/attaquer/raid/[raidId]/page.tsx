@@ -116,6 +116,7 @@ export default function RaidPage() {
                 <p className="text-sm font-semibold text-amber-300">
                   Butin final : {formatLoot(view.bankedLoot)}
                 </p>
+                {!!view.crystalsEarned && <p className="text-sm font-semibold text-sky-300">💎 +{view.crystalsEarned} cristaux</p>}
                 <Button
                   onClick={() => router.push("/donjon/attaquer", { transitionTypes: ["nav-back"] })}
                   className="mt-2 w-full"
@@ -179,6 +180,7 @@ export default function RaidPage() {
           <p className="text-sm text-slate-300">
             {view.status === "wiped" ? "Aucun butin récupéré." : `Butin final : ${formatLoot(view.bankedLoot)}`}
           </p>
+          {!!view.crystalsEarned && <p className="text-sm text-sky-300">💎 +{view.crystalsEarned} cristaux</p>}
           <Link
             href="/donjon/attaquer"
             transitionTypes={["nav-back"]}

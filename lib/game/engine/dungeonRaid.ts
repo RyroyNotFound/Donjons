@@ -1,14 +1,15 @@
 import "server-only";
 
 import { GameError } from "@/lib/api/handler";
-import { getMonster, getTrap } from "@/lib/game/content/dungeon";
+import { getMonster, getTrap, monsterScaleForDefenseLevel } from "@/lib/game/content/dungeon";
 import {
   beastMasteryMultiplierForLevel,
   garrisonStatMultiplierForLevel,
-  trapExtraChargesForLevel,
-  vaultCapacityMultiplierForLevel,
+  vaultStealMultiplierForLevel,
+  wardResistanceForLevel,
 } from "@/lib/game/content/dungeonUpgrades";
-import { resolveRoomBattle, resolveTrapTrigger } from "@/lib/game/engine/dungeonCombat";
+import { partyDisarm, resolveMarchHeal, resolveRoomBattle, resolveTrapTrigger } from "@/lib/game/engine/dungeonCombat";
+import { ELEMENTS, resistancesOf } from "@/lib/game/engine/elements";
 import { ENTRANCE_CELL } from "@/lib/game/content/dungeon";
 import { isAdjacent, neighborsOf, roomKey, type Cell } from "@/lib/game/engine/dungeonLayout";
 import type {
@@ -17,6 +18,7 @@ import type {
   DungeonOccupant,
   DungeonRaid,
   DungeonUpgrades,
+  Element,
   HeroStats,
   RaidEffectTag,
   RaidLogEntry,
@@ -31,11 +33,14 @@ import type {
 
 const STEAL_RATIO = 0.15;
 const STEAL_CAP_GOLD = 300;
+/** A stronger dungeon guards a bigger purse: the gold cap grows with its defense level. */
+const STEAL_CAP_GOLD_PER_DEFENSE_LEVEL = 15;
 
-/** What the attacker steals from a real defender's stash, before the vaultCapacity bonus. */
-export function computeLootPool(defenderProfile: UserProfile, upgrades: DungeonUpgrades): BattleReward {
-  const vaultMultiplier = vaultCapacityMultiplierForLevel(upgrades.levels.vaultCapacity ?? 0);
-  const gold = Math.min(STEAL_CAP_GOLD, Math.round(defenderProfile.gold * STEAL_RATIO * vaultMultiplier));
+/** What the attacker can steal from a real defender's stash, reduced by the defender's Coffre-fort. */
+export function computeLootPool(defenderProfile: UserProfile, upgrades: DungeonUpgrades, defenseLevel = 1): BattleReward {
+  const vaultMultiplier = vaultStealMultiplierForLevel(upgrades.levels.vaultCapacity ?? 0);
+  const cap = STEAL_CAP_GOLD + STEAL_CAP_GOLD_PER_DEFENSE_LEVEL * Math.max(0, defenseLevel - 1);
+  const gold = Math.min(cap, Math.round(defenderProfile.gold * STEAL_RATIO * vaultMultiplier));
   const resources: Partial<Record<ResourceKind, number>> = {};
   for (const [kind, amount] of Object.entries(defenderProfile.resources) as [ResourceKind, number][]) {
     resources[kind] = Math.round(amount * STEAL_RATIO * vaultMultiplier);
@@ -59,6 +64,14 @@ function shareOfReward(reward: BattleReward, denominator: number): BattleReward 
   return { gold: Math.round(reward.gold / denominator), resources };
 }
 
+/** A stat block's resistances plus the Sceaux élémentaires bonus on every element. */
+function wardedResistances(stats: Partial<HeroStats>, ward: number): Partial<Record<Element, number>> {
+  const res = resistancesOf(stats);
+  if (ward <= 0) return res;
+  for (const element of ELEMENTS) res[element] = (res[element] ?? 0) + ward;
+  return res;
+}
+
 export interface GarrisonMember {
   id: string;
   name: string;
@@ -66,6 +79,7 @@ export interface GarrisonMember {
   stats: HeroStats;
   raidEffectTag?: RaidEffectTag;
   raidEffectBonus?: boolean;
+  element?: Element;
 }
 
 export interface DefenderSnapshotResult {
@@ -81,7 +95,9 @@ export function buildDefenderSnapshot(
 ): DefenderSnapshotResult {
   const garrisonMultiplier = garrisonStatMultiplierForLevel(upgrades.levels.defenderVigor ?? 0);
   const beastMultiplier = beastMasteryMultiplierForLevel(upgrades.levels.beastMastery ?? 0);
-  const extraCharges = trapExtraChargesForLevel(upgrades.levels.trapcraft ?? 0);
+  // Monsters grow with their owner: the dungeon's defense level scales every monster (bosses included).
+  const levelMultiplier = monsterScaleForDefenseLevel(dungeon.defenseLevel);
+  const ward = wardResistanceForLevel(upgrades.levels.elementalWards ?? 0);
 
   const resolvedGarrison: DungeonOccupant[] = garrison.map((member) => ({
     id: member.id,
@@ -94,6 +110,10 @@ export function buildDefenderSnapshot(
     defPhys: Math.round(member.stats.defPhys * garrisonMultiplier),
     defMag: Math.round(member.stats.defMag * garrisonMultiplier),
     spd: member.stats.spd,
+    crit: member.stats.crit,
+    critDmg: member.stats.critDmg,
+    element: member.element,
+    res: wardedResistances(member.stats, ward),
     raidEffectTag: member.raidEffectTag,
     raidEffectBonus: member.raidEffectBonus,
   }));
@@ -107,14 +127,14 @@ export function buildDefenderSnapshot(
 
     if (cell.type === "trap") {
       const charges = (cell.trapIds ?? []).reduce(
-        (sum, trapId) => sum + getTrap(trapId).baseCharges + extraCharges,
+        (sum, trapId) => sum + getTrap(trapId).baseCharges,
         0,
       );
       rooms[key] = { visited: isEntrance, cleared: isEntrance, trapChargesRemaining: charges };
     } else if (cell.type === "monster") {
       const monsterOccupants: DungeonOccupant[] = (cell.monsterRefIds ?? []).map((refId) => {
         const definition = getMonster(refId);
-        const multiplier = definition.isBoss ? 1 : beastMultiplier;
+        const multiplier = levelMultiplier * (definition.isBoss ? 1 : beastMultiplier);
         return {
           id: `${key}:${refId}`,
           name: definition.name,
@@ -124,7 +144,11 @@ export function buildDefenderSnapshot(
           atkMag: Math.round(definition.stats.atkMag * multiplier),
           defPhys: Math.round(definition.stats.defPhys * multiplier),
           defMag: Math.round(definition.stats.defMag * multiplier),
-          spd: definition.stats.spd,
+          spd: Math.round(definition.stats.spd * Math.sqrt(levelMultiplier)),
+          crit: definition.stats.crit,
+          critDmg: definition.stats.critDmg,
+          element: definition.element,
+          res: wardedResistances(definition.stats, ward),
         };
       });
       resolvedRoomOccupants[key] = [...monsterOccupants, ...resolvedGarrison];
@@ -167,9 +191,14 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
   const treasureRoomsReached = [...raid.treasureRoomsReached];
 
   if (cell.type === "trap" && (roomState.trapChargesRemaining ?? 0) > 0) {
-    for (const trapId of cell.trapIds ?? []) {
+    const disarm = partyDisarm(heroes);
+    if (disarm > 0) {
+      newLog.push({ roomKey: targetKey, kind: "info", message: `L'équipe repère les mécanismes : dégâts des pièges réduits de ${Math.round(disarm * 100)} %.` });
+    }
+    const roomBudget = new Map<string, number>();
+    for (const [stackIndex, trapId] of (cell.trapIds ?? []).entries()) {
       const trap = getTrap(trapId);
-      const result = resolveTrapTrigger(targetKey, heroes, trap, rng);
+      const result = resolveTrapTrigger(targetKey, heroes, trap, rng, stackIndex, disarm, raid.trapDamageMultiplier ?? 1, roomBudget);
       heroes = result.heroesAfter;
       newLog.push(...result.log);
       if (result.wiped) {
@@ -202,6 +231,14 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
       kind: "info",
       message: "Vous découvrez une salle au trésor et sécurisez votre part du butin !",
     });
+  }
+
+  // Healers patch the party up after any room that hurt (trap fired or fight fought).
+  const dangerous = (cell.type === "trap" && newLog.some((l) => l.kind === "trap")) || (cell.type === "monster" && newLog.some((l) => l.kind === "attack"));
+  if (status === "in_progress" && dangerous) {
+    const heal = resolveMarchHeal(targetKey, heroes);
+    heroes = heal.heroesAfter;
+    newLog.push(...heal.log);
   }
 
   roomState.visited = true;
@@ -251,11 +288,27 @@ export function toRaidView(raid: DungeonRaid, newLog: RaidLogEntry[] = []): Raid
     });
   }
 
+  // A living "scout" hero reveals what the fog tiles next to the party contain (and, with its class
+  // bonus, how many traps/monsters wait there).
+  const scout = raid.heroes.filter((h) => h.hp > 0 && h.raidEffectTag === "scout");
+  const scoutBonus = scout.some((h) => h.raidEffectBonus);
   for (const neighbor of neighborsOf(raid.currentRoom)) {
     const key = roomKey(neighbor);
     if (raid.rooms[key]?.visited) continue;
-    if (!cellsByKey.has(key)) continue;
-    rooms.push({ row: neighbor.row, col: neighbor.col, known: true });
+    const cell = cellsByKey.get(key);
+    if (!cell) continue;
+    if (scout.length === 0) {
+      rooms.push({ row: neighbor.row, col: neighbor.col, known: true });
+      continue;
+    }
+    rooms.push({
+      row: neighbor.row,
+      col: neighbor.col,
+      known: true,
+      scouted: true,
+      type: cell.type,
+      occupantCount: scoutBonus ? (cell.trapIds?.length ?? cell.monsterRefIds?.length) : undefined,
+    });
   }
 
   return {

@@ -37,11 +37,13 @@ export const POST = withAuth(async (uid, request) => {
 
     let goldGained = 0;
     let rankTokensGained = 0;
+    let stardustGained = 0;
     const capturedGained: Record<string, number> = {};
     const unlockedClasses = [...user.unlockedClasses];
     const componentRanks = { ...user.componentRanks };
 
     for (const result of results) {
+      stardustGained += result.stardust ?? 0;
       if (result.kind === "gold" && result.amount) {
         goldGained += result.amount;
       } else if (result.kind === "rankToken" && result.amount) {
@@ -64,6 +66,7 @@ export const POST = withAuth(async (uid, request) => {
       crystals: user.crystals - cost,
       gold: user.gold + goldGained,
       rankTokens: user.rankTokens + rankTokensGained,
+      stardust: (user.stardust ?? 0) + stardustGained,
       unlockedClasses,
       componentRanks,
       capturedMonsters: nextCaptured,
@@ -75,6 +78,7 @@ export const POST = withAuth(async (uid, request) => {
       crystals: user.crystals - cost,
       gold: user.gold + goldGained,
       rankTokens: user.rankTokens + rankTokensGained,
+      stardust: (user.stardust ?? 0) + stardustGained,
     };
   });
 

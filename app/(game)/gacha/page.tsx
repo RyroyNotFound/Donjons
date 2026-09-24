@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useGameData } from "@/lib/game/GameDataProvider";
 import { callApi } from "@/lib/api/client";
 import {
+  FIRST_CLASS_GUARANTEE_PULL,
   PITY_EPIQUE_THRESHOLD,
   PITY_LEGENDAIRE_THRESHOLD,
   PITY_RARE_THRESHOLD,
@@ -11,6 +12,7 @@ import {
 import { Card } from "@/components/Card";
 import { ProgressBar } from "@/components/ProgressBar";
 import { GachaResultCard } from "@/components/gacha/GachaResultCard";
+import { Observatory } from "@/components/gacha/Observatory";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
 import { PageTransition } from "@/components/PageTransition";
@@ -52,11 +54,16 @@ export default function GachaPage() {
     <div className="space-y-6">
       <PageHeader
         title="Invocation"
-        subtitle="Dépensez vos cristaux pour convoquer des héros et des ressources."
+        subtitle="Dépensez vos cristaux pour débloquer classes, sorts, talents et maîtrises."
         action={
-          <p className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-lg font-semibold text-sky-300">
-            💎 {crystals}
-          </p>
+          <div className="flex flex-wrap gap-2">
+            <p className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-lg font-semibold text-sky-300">
+              💎 {crystals}
+            </p>
+            <p className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-lg font-semibold text-violet-300">
+              ✦ {profile?.stardust ?? 0}
+            </p>
+          </div>
         }
       />
 
@@ -66,6 +73,14 @@ export default function GachaPage() {
             Progression avant garantie
           </h2>
           <div className="space-y-3 text-xs text-slate-400">
+            {profile && profile.unlockedClasses.length === 0 && (
+              <p className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-amber-200">
+                🎓 Première classe garantie :{" "}
+                {Math.max(1, FIRST_CLASS_GUARANTEE_PULL - pity.totalPulls) === 1
+                  ? "au prochain tirage !"
+                  : `dans ${FIRST_CLASS_GUARANTEE_PULL - pity.totalPulls} tirages au plus.`}
+              </p>
+            )}
             <div>
               <div className="mb-1 flex justify-between">
                 <span>Rare+</span>
@@ -136,6 +151,19 @@ export default function GachaPage() {
           ))}
         </div>
       )}
+
+      {profile && <Observatory profile={profile} />}
+
+      <Card>
+        <h2 className="font-display mb-2 text-sm font-semibold tracking-wide text-slate-300">💎 Obtenir des cristaux</h2>
+        <ul className="list-inside list-disc space-y-1 text-xs text-slate-400">
+          <li>Chaque expédition réussie : 1 à 3 cristaux selon la zone, +1 en Cauchemar et Tourment.</li>
+          <li>Première victoire du jour dans chaque zone : +2 cristaux et 1 jeton de rang.</li>
+          <li>Premier succès et premier 3★ de chaque zone, dans chaque difficulté : jusqu&apos;à +11 cristaux d&apos;un coup.</li>
+          <li>Raids : conquérir un donjon de joueur (+3), un donjon d&apos;entraînement (+3 à +12 la première fois, +1 ensuite).</li>
+          <li>Défendre votre donjon avec succès : +2. Et la taverne vend parfois des cristaux…</li>
+        </ul>
+      </Card>
     </div>
     </PageTransition>
   );

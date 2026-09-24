@@ -152,6 +152,93 @@ export const MASTERIES: MasteryDefinition[] = [
     description: "Frappe des deux mains, physique et magique, sans se ménager.",
     statBonus: { atkPhys: 3, atkMag: 3, hp: -8 },
   },
+  // --- Critiques ---
+  {
+    id: "mastery-oeil-du-faucon",
+    name: "Œil du faucon",
+    description: "Repère la faille dans chaque garde.",
+    statBonus: { crit: 5 },
+  },
+  {
+    id: "mastery-coup-fatal",
+    name: "Coup fatal",
+    description: "Quand ça touche, ça fait très mal.",
+    statBonus: { critDmg: 20 },
+  },
+  {
+    id: "mastery-lame-febrile",
+    name: "Lame fébrile",
+    description: "Frappe les points vitaux, néglige sa propre garde.",
+    statBonus: { crit: 7, defPhys: -4, defMag: -4 },
+  },
+  {
+    id: "mastery-temerite",
+    name: "Témérité",
+    description: "Tout pour le coup parfait, rien pour la survie.",
+    statBonus: { critDmg: 35, hp: -35 },
+  },
+  // --- Résistances élémentaires ---
+  {
+    id: "mastery-ignifuge",
+    name: "Ignifuge",
+    description: "La peau ne craint plus les flammes.",
+    statBonus: { resFeu: 18 },
+  },
+  {
+    id: "mastery-sang-froid",
+    name: "Sang glacé",
+    description: "Le froid glisse sans mordre.",
+    statBonus: { resGlace: 18 },
+  },
+  {
+    id: "mastery-paratonnerre",
+    name: "Paratonnerre",
+    description: "Détourne la foudre vers le sol.",
+    statBonus: { resFoudre: 18 },
+  },
+  {
+    id: "mastery-foi-inebranlable",
+    name: "Foi inébranlable",
+    description: "La lumière n'aveugle plus.",
+    statBonus: { resSacre: 18 },
+  },
+  {
+    id: "mastery-coeur-de-tenebres",
+    name: "Cœur de ténèbres",
+    description: "L'ombre reconnaît l'un des siens.",
+    statBonus: { resOmbre: 18 },
+  },
+  {
+    id: "mastery-prisme",
+    name: "Prisme",
+    description: "Diffracte un peu de chaque élément, au prix de la force.",
+    statBonus: { resFeu: 7, resGlace: 7, resFoudre: 7, resSacre: 7, resOmbre: 7, atkPhys: -1, atkMag: -1 },
+  },
+  // --- Pillage de donjon (inutile en expédition) ---
+  {
+    id: "mastery-pas-feutre",
+    name: "Pas feutré",
+    description: "Marche là où les dalles ne cliquent pas.",
+    statBonus: { trapRes: 20 },
+  },
+  {
+    id: "mastery-demineur",
+    name: "Démineur",
+    description: "Désamorce tout, mais prend son temps.",
+    statBonus: { trapRes: 32, spd: -2 },
+  },
+  {
+    id: "mastery-armure-matelassee",
+    name: "Armure matelassée",
+    description: "Amortit les pointes et les éclats.",
+    statBonus: { trapRes: 12, hp: 10 },
+  },
+  {
+    id: "mastery-instinct-du-pilleur",
+    name: "Instinct du pilleur",
+    description: "Flaire les pièges comme les sortilèges, au prix de la force.",
+    statBonus: { trapRes: 14, resFeu: 5, resGlace: 5, resFoudre: 5, resSacre: 5, resOmbre: 5, atkPhys: -2, atkMag: -2 },
+  },
 ];
 
 export function getMastery(id: string): MasteryDefinition {

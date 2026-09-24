@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useGameData } from "@/lib/game/GameDataProvider";
 import { callApi } from "@/lib/api/client";
-import { BOSSES, ENTRANCE_CELL, MONSTERS, TRAPS, TREASURE_ROOM_COST } from "@/lib/game/content/dungeon";
+import { BOSSES, ENTRANCE_CELL, MONSTERS, TRAPS, TREASURE_ROOM_COST, monsterScaleForDefenseLevel } from "@/lib/game/content/dungeon";
 import {
+  DEFAULT_UPGRADE_LEVELS,
   garrisonCapacityForLevel,
   maxOccupantsForLevel,
   maxRoomsForLevel,
-  pointBudgetForLevel,
+  dungeonDefenseLevel,
+  dungeonPointBudget,
 } from "@/lib/game/content/dungeonUpgrades";
 import { findDisconnectedRooms, isAdjacent, roomKey } from "@/lib/game/engine/dungeonLayout";
 import { Card } from "@/components/Card";
@@ -48,17 +50,6 @@ function pointsSpentOf(rooms: DungeonRoomCell[]): number {
   return total;
 }
 
-const DEFAULT_UPGRADE_LEVELS: DungeonUpgrades["levels"] = {
-  expansion: 0,
-  architecture: 0,
-  defenderVigor: 0,
-  trapcraft: 0,
-  beastMastery: 0,
-  hazardDensity: 0,
-  vaultCapacity: 0,
-  heroSlots: 0,
-};
-
 export default function DonjonPage() {
   const { dungeon, profile, heroes, dungeonUpgrades } = useGameData();
   const [rooms, setRooms] = useState<DungeonRoomCell[]>(entranceRoom());
@@ -80,7 +71,9 @@ export default function DonjonPage() {
 
   const levels = dungeonUpgrades?.levels ?? DEFAULT_UPGRADE_LEVELS;
   const maxRooms = maxRoomsForLevel(levels.expansion);
-  const budget = pointBudgetForLevel(levels.architecture);
+  const defenseLevel = dungeonDefenseLevel(heroes.filter((h) => h.classId).map((h) => h.level));
+  const budget = dungeonPointBudget(levels.architecture, defenseLevel);
+  const defenseLog = profile?.defenseLog ?? [];
   const maxOccupants = maxOccupantsForLevel(levels.hazardDensity);
   const garrisonCapacity = garrisonCapacityForLevel(levels.defenderVigor);
 
@@ -169,6 +162,9 @@ export default function DonjonPage() {
             <span className={treasureCountValid ? "text-slate-400" : "text-red-400"}>
               Trésors : {treasureRoomCount}/4
             </span>
+            <span className="text-slate-400" title="Niveau moyen de vos 4 meilleurs héros : renforce vos monstres et ajoute du budget.">
+              🛡️ Niveau de défense : {defenseLevel} (monstres ×{monsterScaleForDefenseLevel(defenseLevel).toFixed(1)})
+            </span>
           </span>
         }
       />
@@ -238,6 +234,35 @@ export default function DonjonPage() {
             );
           })}
         </div>
+      </Card>
+
+      <Card>
+        <p className="font-display mb-3 text-sm font-semibold text-slate-50">📜 Journal de défense</p>
+        {defenseLog.length === 0 ? (
+          <p className="text-sm text-slate-500">Personne n&apos;a encore osé attaquer votre donjon.</p>
+        ) : (
+          <ul className="space-y-1.5 text-sm">
+            {defenseLog.map((entry) => (
+              <li key={entry.at} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-1.5">
+                <span className="text-slate-300">
+                  {entry.result === "defended" ? "🛡️" : entry.result === "fled" ? "🏃" : "💀"} {entry.attackerName}{" "}
+                  <span className="text-xs text-slate-500">(Nv. {entry.attackerLevel})</span>
+                </span>
+                <span className="text-xs text-slate-400">
+                  {entry.result === "defended" && `Repoussé${entry.fellIn ? ` (tombé en salle ${entry.fellIn})` : ""} · +${entry.crystalsGained} 💎`}
+                  {entry.result === "fled" && `A fui avec ${entry.treasureReached}/${entry.treasureTotal} trésor(s) · −${entry.goldLost} or`}
+                  {entry.result === "conquered" && `Donjon conquis · −${entry.goldLost} or`}
+                  {" · "}
+                  {new Date(entry.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-slate-500">
+          Chaque attaque repoussée rapporte 2 💎 et de l&apos;or selon le niveau de l&apos;attaquant. Regardez où tombent vos adversaires pour
+          renforcer les bonnes salles.
+        </p>
       </Card>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

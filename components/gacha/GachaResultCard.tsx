@@ -75,6 +75,7 @@ export function GachaResultCard({ result, index }: { result: GachaPullResult; in
             <Icon name={RARITY_ICON[result.rarity]} className="h-3 w-3" /> {RARITY_LABEL[result.rarity]}
           </p>
           <p className="mt-1 px-1 font-medium leading-tight">{resultLabel(result)}</p>
+          {!!result.stardust && <p className="mt-0.5 text-[10px] text-violet-300">+{result.stardust} ✦</p>}
         </div>
       </div>
     </div>

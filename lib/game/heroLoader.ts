@@ -1,6 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
-import { resolveHeroStats } from "@/lib/game/engine/stats";
+import { heroPower, resolveHeroStats } from "@/lib/game/engine/stats";
 import type { Hero, HeroStats, Item, UserProfile } from "@/types/game";
 
 export interface ResolvedHero {
@@ -49,9 +49,5 @@ export async function loadOwnedHeroesWithStats(
 }
 
 export function teamPower(resolved: ResolvedHero[]): number {
-  return resolved.reduce(
-    (sum, { stats }) =>
-      sum + stats.atkPhys + stats.atkMag + stats.defPhys + stats.defMag + stats.hp / 10 + stats.spd,
-    0,
-  );
+  return resolved.reduce((sum, { stats }) => sum + heroPower(stats), 0);
 }

@@ -1,6 +1,6 @@
 import type { SpellDefinition } from "@/types/game";
 
-// 5 attack spells per class (30 total). Every spell has TWO distinct combat
+// 5 attack spells per class (40) + 6 raid utility spells (disarm/scout). Every spell has TWO distinct combat
 // effects — never a passive stat bonus: a raidEffectTag that modifies its
 // owner's attack in turn-based dungeon-raid combat (lib/game/engine/dungeonCombat.ts),
 // and an arenaAbilityTag that modifies its owner's contribution to the
@@ -8,6 +8,8 @@ import type { SpellDefinition } from "@/types/game";
 // (UserProfile.componentRanks) before they can be equipped; duplicates raise
 // their rank instead of granting a second copy — rank currently only affects
 // arena magnitude (per-count scaling already there); raid effects are flat.
+// `element` (optional) is the spell's damage element: the hero's first equipped
+// elemental spell sets the element of ALL its attacks, in both modes.
 export const SPELLS: SpellDefinition[] = [
   // --- Guerrier ---
   {
@@ -17,6 +19,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Chaque coup touche aussi un ennemi proche en éclaboussure.",
     raidEffectTag: "cleave",
     arenaAbilityTag: "cleave",
+    element: "feu",
   },
   {
     id: "spell-coup-fulgurant",
@@ -25,6 +28,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Frappe avec une force redoublée les ennemis déjà affaiblis.",
     raidEffectTag: "execute",
     arenaAbilityTag: "dmgbuff",
+    element: "foudre",
   },
   {
     id: "spell-posture-offensive",
@@ -49,6 +53,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Un cri percutant qui assomme la cible.",
     raidEffectTag: "stun",
     arenaAbilityTag: "cleave",
+    element: "foudre",
   },
   // --- Archer ---
   {
@@ -66,6 +71,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Vise la moindre faiblesse pour achever les blessés.",
     raidEffectTag: "execute",
     arenaAbilityTag: "multishot",
+    element: "glace",
   },
   {
     id: "spell-tir-a-bout-portant",
@@ -74,6 +80,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Un tir qui traverse les défenses de plein fouet.",
     raidEffectTag: "pierce",
     arenaAbilityTag: "dmgbuff",
+    element: "foudre",
   },
   {
     id: "spell-retraite-agile",
@@ -90,6 +97,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Chaque flèche empoisonne un peu plus la plaie.",
     raidEffectTag: "poison",
     arenaAbilityTag: "multishot",
+    element: "ombre",
   },
   // --- Prêtre ---
   {
@@ -99,6 +107,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Un soin renforcé sur l'allié le plus faible, au lieu d'attaquer.",
     raidEffectTag: "heal",
     arenaAbilityTag: "regen",
+    element: "sacre",
   },
   {
     id: "spell-benediction",
@@ -107,6 +116,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Un halo protecteur juste avant l'impact.",
     raidEffectTag: "shield",
     arenaAbilityTag: "dmgbuff",
+    element: "sacre",
   },
   {
     id: "spell-chatiment-sacre",
@@ -115,6 +125,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Une lumière implacable qui achève les affaiblis.",
     raidEffectTag: "execute",
     arenaAbilityTag: "dmgbuff",
+    element: "sacre",
   },
   {
     id: "spell-aura-apaisante",
@@ -131,6 +142,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "La ferveur étourdit la cible frappée.",
     raidEffectTag: "stun",
     arenaAbilityTag: "haste",
+    element: "sacre",
   },
   // --- Druide ---
   {
@@ -148,6 +160,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Une morsure qui infecte durablement la plaie.",
     raidEffectTag: "poison",
     arenaAbilityTag: "lifesteal",
+    element: "ombre",
   },
   {
     id: "spell-racines-epaisses",
@@ -156,6 +169,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Emprisonne la cible frappée dans les racines.",
     raidEffectTag: "stun",
     arenaAbilityTag: "haste",
+    element: "glace",
   },
   {
     id: "spell-metamorphose-bestiale",
@@ -164,6 +178,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "La forme animale fond sur les proies affaiblies.",
     raidEffectTag: "execute",
     arenaAbilityTag: "dmgbuff",
+    element: "foudre",
   },
   {
     id: "spell-souffle-vital",
@@ -181,6 +196,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Une garde solide qui absorbe le prochain coup reçu.",
     raidEffectTag: "shield",
     arenaAbilityTag: "dmgbuff",
+    element: "sacre",
   },
   {
     id: "spell-jugement",
@@ -189,6 +205,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Juge et châtie sans pitié les ennemis affaiblis.",
     raidEffectTag: "execute",
     arenaAbilityTag: "dmgbuff",
+    element: "sacre",
   },
   {
     id: "spell-bouclier-sacre",
@@ -197,6 +214,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Se protège avant l'assaut suivant.",
     raidEffectTag: "shield",
     arenaAbilityTag: "haste",
+    element: "sacre",
   },
   {
     id: "spell-charge-heroique",
@@ -205,6 +223,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Fonce dans la mêlée, frappant large.",
     raidEffectTag: "cleave",
     arenaAbilityTag: "cleave",
+    element: "feu",
   },
   {
     id: "spell-serment-inebranlable",
@@ -222,6 +241,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "Convertit une partie des dégâts infligés en vie.",
     raidEffectTag: "lifesteal",
     arenaAbilityTag: "lifesteal",
+    element: "ombre",
   },
   {
     id: "spell-ecrasement",
@@ -246,6 +266,7 @@ export const SPELLS: SpellDefinition[] = [
     description: "La rage s'acharne sur les cibles les plus faibles.",
     raidEffectTag: "execute",
     arenaAbilityTag: "dmgbuff",
+    element: "feu",
   },
   {
     id: "spell-poigne-implacable",
@@ -254,6 +275,148 @@ export const SPELLS: SpellDefinition[] = [
     description: "Une prise brutale qui immobilise l'adversaire.",
     raidEffectTag: "stun",
     arenaAbilityTag: "cleave",
+  },
+  // --- Mage ---
+  {
+    id: "spell-boule-de-feu",
+    classId: "mage",
+    name: "Boule de feu",
+    description: "Une explosion de flammes qui lèche aussi les ennemis voisins.",
+    raidEffectTag: "cleave",
+    arenaAbilityTag: "cleave",
+    element: "feu",
+  },
+  {
+    id: "spell-javelot-de-glace",
+    classId: "mage",
+    name: "Javelot de glace",
+    description: "Un trait de givre qui fige la cible sur place.",
+    raidEffectTag: "stun",
+    arenaAbilityTag: "multishot",
+    element: "glace",
+  },
+  {
+    id: "spell-chaine-d-eclairs",
+    classId: "mage",
+    name: "Chaîne d'éclairs",
+    description: "La foudre rebondit d'une cible à l'autre.",
+    raidEffectTag: "cleave",
+    arenaAbilityTag: "multishot",
+    element: "foudre",
+  },
+  {
+    id: "spell-brulure-arcanique",
+    classId: "mage",
+    name: "Brûlure arcanique",
+    description: "Des flammes qui continuent de ronger la cible.",
+    raidEffectTag: "poison",
+    arenaAbilityTag: "dmgbuff",
+    element: "feu",
+  },
+  {
+    id: "spell-armure-de-givre",
+    classId: "mage",
+    name: "Armure de givre",
+    description: "Une gangue de glace qui amortit le prochain coup.",
+    raidEffectTag: "shield",
+    arenaAbilityTag: "haste",
+    element: "glace",
+  },
+  // --- Assassin ---
+  {
+    id: "spell-lame-empoisonnee",
+    classId: "assassin",
+    name: "Lame empoisonnée",
+    description: "Un venin d'ombre qui nourrit son porteur.",
+    raidEffectTag: "poison",
+    arenaAbilityTag: "lifesteal",
+    element: "ombre",
+  },
+  {
+    id: "spell-pas-de-l-ombre",
+    classId: "assassin",
+    name: "Pas de l'ombre",
+    description: "Disparaît dans les ténèbres avant de frapper.",
+    raidEffectTag: "shield",
+    arenaAbilityTag: "haste",
+    element: "ombre",
+  },
+  {
+    id: "spell-frappe-mortelle",
+    classId: "assassin",
+    name: "Frappe mortelle",
+    description: "Achève sans hésiter une cible à bout de souffle.",
+    raidEffectTag: "execute",
+    arenaAbilityTag: "dmgbuff",
+    element: "ombre",
+  },
+  {
+    id: "spell-eventail-de-dagues",
+    classId: "assassin",
+    name: "Éventail de dagues",
+    description: "Une gerbe de lames qui touche plusieurs ennemis.",
+    raidEffectTag: "cleave",
+    arenaAbilityTag: "multishot",
+  },
+  {
+    id: "spell-coup-bas",
+    classId: "assassin",
+    name: "Coup bas",
+    description: "Un coup vicieux qui laisse la cible sonnée.",
+    raidEffectTag: "stun",
+    arenaAbilityTag: "lifesteal",
+  },
+  // --- Utilitaires de raid (Désamorçage / Éclaireur) : pas d'effet de combat en donjon, mais un
+  // atout d'équipe. Leur classe est celle qui les maîtrise le mieux. ---
+  {
+    id: "spell-desamorcage",
+    classId: "assassin",
+    name: "Désamorçage",
+    description: "Repère et neutralise les mécanismes avant qu'ils ne se déclenchent.",
+    raidEffectTag: "disarm",
+    arenaAbilityTag: "haste",
+  },
+  {
+    id: "spell-pas-de-loup",
+    classId: "archer",
+    name: "Pas de loup",
+    description: "Guide l'équipe sur les dalles sûres.",
+    raidEffectTag: "disarm",
+    arenaAbilityTag: "multishot",
+  },
+  {
+    id: "spell-garde-runique",
+    classId: "paladin",
+    name: "Garde runique",
+    description: "Un bouclier de runes qui absorbe les pièges magiques.",
+    raidEffectTag: "disarm",
+    arenaAbilityTag: "dmgbuff",
+    element: "sacre",
+  },
+  {
+    id: "spell-oeil-de-l-eclaireur",
+    classId: "archer",
+    name: "Œil de l'éclaireur",
+    description: "Scrute les salles voisines avant d'y entrer.",
+    raidEffectTag: "scout",
+    arenaAbilityTag: "multishot",
+  },
+  {
+    id: "spell-murmure-des-racines",
+    classId: "druide",
+    name: "Murmure des racines",
+    description: "Les racines racontent ce qui se cache derrière les murs.",
+    raidEffectTag: "scout",
+    arenaAbilityTag: "regen",
+  },
+  {
+    id: "spell-oeil-arcanique",
+    classId: "mage",
+    name: "Œil arcanique",
+    description: "Un œil flottant qui explore en avance.",
+    raidEffectTag: "scout",
+    arenaAbilityTag: "dmgbuff",
+    element: "foudre",
   },
 ];
 

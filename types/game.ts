@@ -16,7 +16,27 @@ export interface HeroStats {
   defPhys: number;
   defMag: number;
   spd: number;
+  /** Critical hit chance, in % (capped at combat time, see lib/game/engine/elements.ts). */
+  crit: number;
+  /** Extra damage on a critical hit, in % (50 = a crit deals x1.5). */
+  critDmg: number;
+  /** Elemental resistances, in % — negative = weakness. Capped at combat time. */
+  resFeu: number;
+  resGlace: number;
+  resFoudre: number;
+  resSacre: number;
+  resOmbre: number;
+  /** Reduction of dungeon-trap damage taken, in % (capped). Useless in expeditions — a raid-prep stat. */
+  trapRes: number;
 }
+
+/** Damage element. A hero's attacks carry the element of its first equipped elemental spell
+ *  ("affinité", see heroElement in lib/game/engine/stats.ts); a monster's carry its own.
+ *  Unset = neutral: no resistance applies. */
+export type Element = "feu" | "glace" | "foudre" | "sacre" | "ombre";
+
+/** Expedition difficulty tier (see lib/game/content/difficulties.ts). */
+export type Difficulty = "normal" | "difficile" | "cauchemar" | "tourment";
 
 /** A talent tree node, owned via gacha before it can be spent into (see UserProfile.componentRanks). */
 export interface TalentNode {
@@ -40,8 +60,20 @@ export type ArenaAbilityTag = "cleave" | "multishot" | "regen" | "haste" | "dmgb
  *  (lib/game/engine/dungeonCombat.ts): splash damage to a second target, bonus damage
  *  vs a weakened target, defense-piercing, a stun, self-healing on hit, bonus damage
  *  framed as poison, a shield against the next hit taken, or (HEAL-role units only) a
- *  boosted per-round heal instead of attacking. */
-export type RaidEffectTag = "cleave" | "execute" | "pierce" | "stun" | "lifesteal" | "poison" | "shield" | "heal";
+ *  boosted per-round heal instead of attacking. Two are party-wide utilities instead of a combat
+ *  effect (the hero then attacks plainly): "disarm" cuts the whole party's trap damage, "scout"
+ *  reveals what is inside the rooms next to the party (see lib/game/engine/dungeonRaid.ts). */
+export type RaidEffectTag =
+  | "cleave"
+  | "execute"
+  | "pierce"
+  | "stun"
+  | "lifesteal"
+  | "poison"
+  | "shield"
+  | "heal"
+  | "disarm"
+  | "scout";
 
 /** An active attack spell, owned via gacha, equipped into one of a hero's spell slots.
  *  Has two distinct combat effects: one for turn-based dungeon raids, one for the
@@ -58,6 +90,9 @@ export interface SpellDefinition {
   raidEffectTag: RaidEffectTag;
   /** How this spell modifies its owner's contribution to the real-time arena mini-game. */
   arenaAbilityTag: ArenaAbilityTag;
+  /** Element this spell carries — the first equipped elemental spell sets the element of all
+   *  the hero's attacks. Undefined = neutral. */
+  element?: Element;
 }
 
 /** A universal (class-agnostic) passive stat bonus, owned via gacha, equipped into one of a hero's mastery slots. */
@@ -75,8 +110,9 @@ export interface ClassDefinition {
   description: string;
   strengths: string;
   weaknesses: string;
-  baseStats: HeroStats;
-  statGrowthPerLevel: HeroStats;
+  /** Missing stats = 0. Crit/critDmg should include the BASE_CRIT/BASE_CRIT_DMG baseline. */
+  baseStats: Partial<HeroStats>;
+  statGrowthPerLevel: Partial<HeroStats>;
 }
 
 /** A saved loadout ("ensemble"): the freely-swappable half of a build (class + spells + masteries).
@@ -112,15 +148,32 @@ export interface Hero {
 }
 
 export type ItemSlot = "weapon" | "armor" | "trinket";
-export type ItemRarity = "commun" | "rare" | "epique";
+export type ItemRarity = "commun" | "rare" | "epique" | "legendaire";
+
+/** A random bonus line rolled onto an item (see lib/game/content/affixes.ts). Stores the rolled
+ *  values so later content rebalancing never silently changes an existing item. */
+export interface ItemAffix {
+  affixId: string;
+  statBonus: Partial<HeroStats>;
+}
 
 export interface Item {
   id: string;
   ownerId: string;
+  /** Display name, including the first affix suffix ("Épée en fer du Colosse"). */
   name: string;
+  /** Name without affix suffix — kept so reforging can rename the item. Absent on old items (= name). */
+  baseName?: string;
   slot: ItemSlot;
   rarity: ItemRarity;
+  /** Base (implicit) stats, before affixes and enhancement. */
   statBonus: Partial<HeroStats>;
+  /** Random bonus lines — count depends on rarity. Absent on items made before affixes existed. */
+  affixes?: ItemAffix[];
+  /** Forge enhancement level, 0..MAX_ENHANCE_LEVEL (see lib/game/engine/items.ts). Absent = 0. */
+  enhanceLevel?: number;
+  /** 1..5 (4-5 only from harder expedition difficulties): drives affix value ranges and salvage yield. Absent = 1. */
+  tier?: number;
   equippedByHeroId?: string;
 }
 
@@ -147,6 +200,9 @@ export interface Dungeon {
   /** Denormalized count of type "treasure" rooms, 1..4. */
   treasureRoomCount: number;
   pointsSpent: number;
+  /** Strength of the dungeon's monsters (see monsterScaleForDefenseLevel): the average level of the
+   *  owner's 4 best heroes when the layout was saved. Absent on dungeons saved before it existed (= 1). */
+  defenseLevel?: number;
   updatedAt: number;
 }
 
@@ -159,6 +215,8 @@ export interface TrapDefinition {
   damagePercent: number;
   /** Times the trap re-triggers on repeated entry before it goes inert for the rest of the raid. */
   baseCharges: number;
+  /** Element of the trap's damage — reduced by the matching resistance on top of trapRes. Undefined = neutral. */
+  element?: Element;
 }
 
 export interface MonsterDefinition {
@@ -167,7 +225,10 @@ export interface MonsterDefinition {
   description: string;
   cost: number;
   isBoss?: boolean;
+  /** Includes the monster's resistances (resFeu...) — negative values are weaknesses. */
   stats: HeroStats;
+  /** Element of this monster's attacks. Undefined = neutral. */
+  element?: Element;
 }
 
 export type DungeonUpgradeTrackId =
@@ -178,6 +239,8 @@ export type DungeonUpgradeTrackId =
   | "beastMastery"
   | "hazardDensity"
   | "vaultCapacity"
+  | "elementalWards"
+  /** Not shown among dungeon tracks: hero roster slots, bought with gold from the Héros page. */
   | "heroSlots";
 
 export interface DungeonUpgrades {
@@ -203,6 +266,14 @@ export interface RaidHeroState {
   raidEffectTag?: RaidEffectTag;
   /** True when that spell's classId matches the hero's active class — its raid effect is stronger. */
   raidEffectBonus?: boolean;
+  /** Crit/element/trap fields are absent on raids started before they existed (= 0 / neutral). */
+  trapRes?: number;
+  /** "Affaibli" stacks (0..MAX_WEAKENED) from traps that hit hard: the next fight is harder. Cleared by it. */
+  weakened?: number;
+  crit?: number;
+  critDmg?: number;
+  element?: Element;
+  res?: Partial<Record<Element, number>>;
 }
 
 /** A single combatant inside a room fight: a captured monster, or a garrison hero. */
@@ -220,6 +291,10 @@ export interface DungeonOccupant {
   /** Always undefined for monsters — only garrison heroes carry an equipped spell's raid effect. */
   raidEffectTag?: RaidEffectTag;
   raidEffectBonus?: boolean;
+  crit?: number;
+  critDmg?: number;
+  element?: Element;
+  res?: Partial<Record<Element, number>>;
 }
 
 export interface RaidRoomState {
@@ -259,9 +334,14 @@ export interface DungeonRaid {
   treasureRoomsReached: string[];
   totalLootPool: BattleReward;
   bankedLoot: BattleReward;
+  /** Defender's Trapcraft damage bonus frozen at raid start (absent on older raids = 1). */
+  trapDamageMultiplier?: number;
   status: RaidStatus;
   log: RaidLogEntry[];
   seed: string;
+  /** Attacker display info for the defender's journal (absent on raids started before it existed). */
+  attackerName?: string;
+  attackerLevel?: number;
   startedAt: number;
   updatedAt: number;
 }
@@ -276,6 +356,10 @@ export interface RaidRoomView {
   type?: DungeonRoomContentType;
   cleared?: boolean;
   trapChargesRemaining?: number;
+  /** Fog tile revealed by a "scout" hero: `type` is filled in without the room being visited. */
+  scouted?: boolean;
+  /** Scouted with the class bonus: how many traps/monsters the room holds. */
+  occupantCount?: number;
 }
 
 /** Attacker-facing projection of a raid — API response shape only, never a Firestore doc. */
@@ -290,6 +374,8 @@ export interface RaidView {
   bankedLoot: BattleReward;
   /** Entries produced by the just-resolved move, for step-by-step playback. */
   newLog: RaidLogEntry[];
+  /** Set on the response of the move/flee that ended the raid: crystals the attacker earned. */
+  crystalsEarned?: number;
 }
 
 export interface ZoneLootTable {
@@ -301,29 +387,99 @@ export interface ZoneLootTable {
   monsterCaptureRefId?: string;
 }
 
+/** The zone's end-of-run boss: a monster from the catalog, scaled up. Spawns at `spawnAtSec`;
+ *  killing it ends the run early as a victory. */
+export interface ZoneBoss {
+  refId: string;
+  name: string;
+  hpMultiplier: number;
+  atkMultiplier: number;
+  spawnAtSec: number;
+}
+
 export interface ZoneDefinition {
   id: string;
   name: string;
   description: string;
+  /** Order in the expedition ladder (1 = first zone). */
+  tier: number;
+  /** Zone that must be cleared (≥1★) before this one unlocks. Undefined = unlocked from the start. */
+  unlockRequires?: string;
+  /** Loot/item-tier scale (see lib/game/engine/loot.ts). */
   difficulty: number;
+  /** Team power (see heroPower in lib/game/engine/stats.ts) at which the zone is comfortable. */
+  recommendedPower: number;
   heroSlots: number;
-  /** Length of the live arena run, in seconds. Survive it to win. */
+  /** Length of the live arena run, in seconds (≤ 60: expeditions are quick sessions). */
   durationSec: number;
   /** Monster catalog ids (from lib/game/content/dungeon.ts) this zone can spawn during a run. */
   monsterPool: string[];
+  /** Multiplier on every spawned monster's stats. */
+  statScale: number;
   /** Seconds between spawn waves. */
   spawnIntervalSec: number;
-  /** Enemies spawned per wave (base count — arena engine ramps this up over time). */
+  /** Enemies spawned in the first wave (ramps up over time, see waveSize in lib/game/arena/engine.ts). */
   baseWaveSize: number;
+  /** An elite (tougher, more XP) joins every Nth wave. */
+  eliteEveryNWaves: number;
+  boss: ZoneBoss;
+  /** Hero XP for a full clear (scaled down on defeat). */
+  xpReward: number;
+  /** Arena background gradient (inner, outer). */
+  theme: { inner: string; outer: string };
   loot: ZoneLootTable;
 }
 
-/** Client-reported outcome of a live arena run, sent when claiming an expedition. */
+/** Client-reported outcome of a live arena run, sent when claiming an expedition. Validated
+ *  server-side against the zone's deterministic spawn schedule (see lib/game/arena/engine.ts). */
 export interface ArenaRunResult {
   survived: boolean;
   timeSurvivedMs: number;
   killCount: number;
-  spawnedCount: number;
+  bossKilled: boolean;
+  /** Heroes knocked out during the run (3★ requires 0). */
+  heroesKo: number;
+  /** In-run level reached (from XP gems). */
+  levelReached: number;
+}
+
+/** Per-zone expedition progress on a profile. */
+export interface ExpeditionRecord {
+  bestStars: number;
+  clears: number;
+  /** UTC day ("YYYY-MM-DD") the zone's daily first-victory bonus was last paid. Only set on the
+   *  zone's normal-difficulty record: the bonus is per zone, whatever the difficulty. */
+  dailyBonusDay?: string;
+}
+
+export type LeaderboardCategory = "power" | "expeditions" | "raids" | "collection";
+
+export interface LeaderboardEntry {
+  rank: number;
+  uid: string;
+  displayName: string;
+  score: number;
+  /** Human-readable breakdown shown under the score. */
+  detail: string;
+}
+
+/** GET /api/leaderboard payload (built in lib/game/leaderboard.ts). */
+export interface LeaderboardResponse {
+  categories: Record<LeaderboardCategory, { top: LeaderboardEntry[]; me: LeaderboardEntry | null }>;
+  playerCount: number;
+  builtAt: number;
+}
+
+/** Lifetime raid counters, bumped in lib/game/dungeonRaidLifecycle.ts. Feeds the leaderboard. */
+export interface RaidStats {
+  /** Raids won (every room cleared) against a real player's dungeon. */
+  pvpWins: number;
+  /** Raids won against a developer-made "bot" dungeon. */
+  botWins: number;
+  /** Raids against this player's own dungeon that ended with the attacker wiped. */
+  defenseWins: number;
+  /** Gold + resources carried home from real players' dungeons (victory or flee). */
+  lootStolen: number;
 }
 
 export type ExpeditionStatus = "active" | "claimed";
@@ -333,6 +489,8 @@ export interface Expedition {
   ownerId: string;
   zoneId: string;
   heroIds: string[];
+  /** Absent on expeditions started before difficulties existed (= "normal"). */
+  difficulty?: Difficulty;
   startedAt: number;
   durationSec: number;
   status: ExpeditionStatus;
@@ -350,10 +508,12 @@ export interface RecipeDefinition {
     gold: number;
     resources: Partial<Record<ResourceKind, number>>;
   };
+  /** 1..3: higher tiers roll better rarities and stronger affixes (see lib/game/engine/items.ts). */
+  tier: number;
   result: {
     name: string;
     slot: ItemSlot;
-    rarity: ItemRarity;
+    /** Base stats at "commun" — the rolled rarity scales them up. */
     statBonus: Partial<HeroStats>;
   };
 }
@@ -366,12 +526,35 @@ export interface BattleReward {
 export interface UserProfile {
   uid: string;
   displayName: string;
+  /** Uniqueness key of the chosen name (see lib/game/playerName.ts), reserved in `displayNames/{key}`.
+   *  Absent = still on the auto-generated "Aventurier-xxxxx" name. */
+  displayNameKey?: string;
+  /** Set once the first-login intro (lore + presentation + name choice) is done. Absent = show it. */
+  onboardedAt?: number;
   gold: number;
   resources: Record<ResourceKind, number>;
   capturedMonsters?: Record<string, number>;
   crystals: number;
   /** Generic currency spent on hero star-ups (see lib/game/economy.ts rankUpCost). Gacha-granted. */
   rankTokens: number;
+  /** Forge material earned by salvaging items, spent on enhancing/reforging them. Absent = 0. */
+  forgeShards?: number;
+  /** Gacha by-product (every pull gives some), spent at the Observatoire to pick a specific
+   *  spell/talent/mastery/class or rank one up (see lib/game/content/observatory.ts). Absent = 0. */
+  stardust?: number;
+  /** Bot dungeon id -> victories, for the first-win crystal bonus. Absent = none yet. */
+  botDungeonWins?: Record<string, number>;
+  /** Record key (see recordKey in lib/game/content/difficulties.ts: the zone id for normal,
+   *  "zoneId:difficulty" otherwise) -> best stars and clear count. Absent = no zone cleared yet. */
+  expeditionRecords?: Record<string, ExpeditionRecord>;
+  /** Absent = no raid finished yet (every counter 0). */
+  raidStats?: RaidStats;
+  /** Absent = tavern never visited. */
+  tavern?: TavernState;
+  /** Defender id -> UTC day ("YYYY-MM-DD") of the last conquest that paid crystals (once a day per dungeon). */
+  raidConquests?: Record<string, string>;
+  /** Latest raids against this player's dungeon, newest first (capped, see DEFENSE_LOG_SIZE). */
+  defenseLog?: DefenseLogEntry[];
   /** Classes are a simple binary unlock for now — no duplicate/rank system (a dedicated class
    *  progression system is planned separately). */
   unlockedClasses: string[];
@@ -401,4 +584,89 @@ export interface GachaPullResult {
   refId?: string;
   amount?: number;
   monsterRefId?: string;
+  /** Stardust this pull granted on top of its reward (see STARDUST_PER_PULL). */
+  stardust?: number;
+}
+
+export type TavernNpcKind = "marchand" | "conteur" | "bienfaiteur" | "parieur";
+/** How often an NPC shows up in the rotation (see lib/game/tavern.ts NPC_RARITY_WEIGHT). */
+export type TavernNpcRarity = "commun" | "rare" | "legendaire";
+
+export interface TavernAmount {
+  gold?: number;
+  crystals?: number;
+  rankTokens?: number;
+  forgeShards?: number;
+  resources?: Partial<Record<ResourceKind, number>>;
+}
+
+export interface TavernReward extends TavernAmount {
+  /** A freshly rolled item from this recipe's base. `rarity` forces the rarity; absent = the
+   *  recipe tier's craft odds. */
+  item?: { recipeId: string; rarity?: ItemRarity };
+  /** A rolled item from a random recipe, with random rarity (see RANDOM_ITEM_RARITY_WEIGHTS). */
+  randomItem?: boolean;
+  /** Client-only joke purchase: the id of the interface theme the player asked for (they get a
+   *  different one, and it wears off when leaving the page). Nothing is persisted. */
+  cosmeticThemeId?: string;
+}
+
+/** One thing an NPC offers: a purchase (marchand), a gift (bienfaiteur) or a bet (parieur). */
+export interface TavernOffer {
+  id: string;
+  label: string;
+  description?: string;
+  cost?: TavernAmount;
+  reward: TavernReward;
+  /** Bets only: 0..1 chance that the reward is granted (the cost is always paid). */
+  winChance?: number;
+  /** The price is a secret random amount of gold between 1 and everything the player owns,
+   *  rolled server-side when the offer is taken. */
+  randomGoldCost?: boolean;
+}
+
+/** A tavern NPC (static content, lib/game/content/tavern.ts). */
+export interface TavernNpc {
+  id: string;
+  name: string;
+  title: string;
+  /** Emoji portrait. */
+  portrait: string;
+  kind: TavernNpcKind;
+  rarity: TavernNpcRarity;
+  greeting: string;
+  /** Storytellers: the tale, one paragraph per entry. */
+  story?: string[];
+  offers?: TavernOffer[];
+  /** "each" (default): every offer can be taken once per visit. "pickOne": taking one closes the others. */
+  offerMode?: "each" | "pickOne";
+  /** Bets only: lines shown on a won/lost bet. */
+  winLine?: string;
+  loseLine?: string;
+  /** Storytellers: the tale never ends — past the last paragraph it starts over. */
+  storyLoops?: boolean;
+}
+
+/** Per-profile tavern progress. `slot` is the 30-min rotation window the claims belong to —
+ *  a different current slot means a new NPC and a fresh `claimedOfferIds`. */
+export interface TavernState {
+  slot: number;
+  claimedOfferIds: string[];
+  /** Every NPC ever met (codex). */
+  metNpcIds: string[];
+}
+
+/** One raid against a player's dungeon, as shown in its owner's defense journal. */
+export interface DefenseLogEntry {
+  at: number;
+  attackerName: string;
+  attackerLevel: number;
+  /** defended = attacker wiped · fled = attacker left with part of the loot · conquered = every treasure room reached. */
+  result: "defended" | "fled" | "conquered";
+  treasureReached: number;
+  treasureTotal: number;
+  goldLost: number;
+  /** Deepest room the attacker died in, when defended ("row,col"). */
+  fellIn?: string;
+  crystalsGained: number;
 }

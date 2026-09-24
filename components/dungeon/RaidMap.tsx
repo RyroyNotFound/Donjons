@@ -12,7 +12,9 @@ const TYPE_ICON: Record<string, string> = {
   treasure: "💰",
 };
 
-/** Fog-of-war raid map: visited rooms show their content, adjacent unvisited rooms are clickable "?" tiles, everything else is hidden. */
+/** Fog-of-war raid map: visited rooms show their content, adjacent unvisited rooms are clickable "?" tiles
+ *  (showing their content when a scout revealed it), visited rooms next to the party can be walked back
+ *  through (a trap with charges left fires again), everything else is hidden. */
 export function RaidMap({
   rooms,
   currentRoom,
@@ -42,22 +44,33 @@ export function RaidMap({
         }
 
         if (!view.visited) {
+          const scoutedIcon = view.scouted && view.type ? (view.type === "empty" ? "·" : TYPE_ICON[view.type]) : null;
           return (
             <button
               key={key}
               disabled={disabled}
               onClick={() => onEnterRoom(row, col)}
-              aria-label={`Salle inconnue en ligne ${row + 1}, colonne ${col + 1} — explorer`}
-              className={`aspect-square animate-pulse rounded-lg border border-dashed border-amber-400/50 bg-amber-500/10 text-lg text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
+              aria-label={`Salle ${scoutedIcon ? "repérée" : "inconnue"} en ligne ${row + 1}, colonne ${col + 1} — explorer`}
+              title={view.scouted ? `Repérée par l'éclaireur${view.occupantCount ? ` : ${view.occupantCount} occupant(s)` : ""}` : undefined}
+              className={`relative aspect-square animate-pulse rounded-lg border border-dashed border-amber-400/50 bg-amber-500/10 text-lg text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
             >
-              ?
+              {scoutedIcon ?? "?"}
+              {view.occupantCount ? (
+                <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 text-[10px] text-amber-200">×{view.occupantCount}</span>
+              ) : null}
             </button>
           );
         }
 
+        const adjacent = Math.abs(currentRoom.row - row) + Math.abs(currentRoom.col - col) === 1;
+        const Tag = adjacent ? "button" : "div";
+
         return (
-          <div
+          <Tag
             key={key}
+            {...(adjacent
+              ? { onClick: () => onEnterRoom(row, col), disabled, "aria-label": `Revenir en ligne ${row + 1}, colonne ${col + 1}` }
+              : {})}
             title={
               view.trapChargesRemaining !== undefined
                 ? `${view.trapChargesRemaining} charge(s) restante(s)`
@@ -66,7 +79,9 @@ export function RaidMap({
             className={`relative flex aspect-square items-center justify-center rounded-lg border text-lg ${
               isCurrent
                 ? "border-amber-400 bg-amber-500/20 ring-2 ring-amber-400"
-                : "border-white/15 bg-black/20"
+                : adjacent
+                  ? `border-white/30 bg-black/20 transition hover:bg-white/10 disabled:cursor-not-allowed ${focusRing}`
+                  : "border-white/15 bg-black/20"
             }`}
           >
             {view.type === "empty" ? (
@@ -85,7 +100,7 @@ export function RaidMap({
                 {view.trapChargesRemaining}
               </span>
             )}
-          </div>
+          </Tag>
         );
       })}
     </div>

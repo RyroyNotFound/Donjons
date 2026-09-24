@@ -2,11 +2,15 @@
 // and UI pages can compute the same numbers without duplicating them.
 
 export const MAX_HEROES = 12;
+/** Gold price of the next hero roster slot, from the current heroSlots level (150, 225, 338...). */
+export function heroSlotCost(currentLevel: number): number {
+  return Math.round(150 * Math.pow(1.5, currentLevel));
+}
 export const MAX_STAR_RANK = 5;
 export const STARTING_CRYSTALS = 15;
 
 // Talents aren't slot-limited (gated by tree tier/prereqs/ownership instead).
-export const SPELL_SLOTS = 4;
+export const SPELL_SLOTS = 2;
 export const MASTERY_SLOTS = 3;
 
 /** Cost to raise a hero from `currentStar` to `currentStar + 1`. */

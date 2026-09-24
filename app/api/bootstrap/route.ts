@@ -2,20 +2,10 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { withAuth } from "@/lib/api/handler";
 import { newHeroData } from "@/lib/game/heroFactory";
-import { STARTING_CRYSTALS } from "@/lib/game/economy";
+import { STARTING_CRYSTALS, SPELL_SLOTS } from "@/lib/game/economy";
 import { ENTRANCE_CELL } from "@/lib/game/content/dungeon";
+import { DEFAULT_UPGRADE_LEVELS } from "@/lib/game/content/dungeonUpgrades";
 import type { Dungeon, DungeonUpgrades, Hero, UserProfile } from "@/types/game";
-
-const DEFAULT_UPGRADE_LEVELS: DungeonUpgrades["levels"] = {
-  expansion: 0,
-  architecture: 0,
-  defenderVigor: 0,
-  trapcraft: 0,
-  beastMastery: 0,
-  hazardDensity: 0,
-  vaultCapacity: 0,
-  heroSlots: 0,
-};
 
 const STARTING_GOLD = 100;
 
@@ -35,6 +25,7 @@ function freshProfile(uid: string): UserProfile {
     capturedMonsters: {},
     crystals: STARTING_CRYSTALS,
     rankTokens: 0,
+    stardust: 0,
     unlockedClasses: [],
     componentRanks: {},
     gachaPity: { ...EMPTY_GACHA_PITY },
@@ -120,8 +111,11 @@ export const POST = withAuth(async (uid) => {
       await adminDb.collection("dungeonUpgrades").doc(uid).set(upgrades);
     } else {
       const levels = (upgradesSnap.data() as DungeonUpgrades).levels as Partial<DungeonUpgrades["levels"]>;
-      if (levels.heroSlots === undefined) {
-        await adminDb.collection("dungeonUpgrades").doc(uid).update({ "levels.heroSlots": 0 });
+      const patch: Record<string, number> = {};
+      if (levels.heroSlots === undefined) patch["levels.heroSlots"] = 0;
+      if (levels.elementalWards === undefined) patch["levels.elementalWards"] = 0;
+      if (Object.keys(patch).length > 0) {
+        await adminDb.collection("dungeonUpgrades").doc(uid).update(patch);
       }
     }
   }
@@ -137,6 +131,25 @@ export const POST = withAuth(async (uid) => {
   if (heroesSnap.empty) {
     const heroRef = adminDb.collection("heroes").doc();
     await heroRef.set(newHeroData(heroRef.id, uid, "Recrue"));
+    heroesSnap = await adminDb.collection("heroes").where("ownerId", "==", uid).get();
+  }
+
+  // SPELL_SLOTS was lowered (4 → 2): keep only the first spells on heroes and saved builds equipped before that.
+  const trimBatch = adminDb.batch();
+  let trimmed = false;
+  for (const doc of heroesSnap.docs) {
+    const hero = doc.data() as Hero;
+    const tooManySpells = (hero.equippedSpellIds ?? []).length > SPELL_SLOTS;
+    const buildsTooBig = (hero.builds ?? []).some((build) => build.equippedSpellIds.length > SPELL_SLOTS);
+    if (!tooManySpells && !buildsTooBig) continue;
+    trimmed = true;
+    trimBatch.update(doc.ref, {
+      equippedSpellIds: (hero.equippedSpellIds ?? []).slice(0, SPELL_SLOTS),
+      builds: (hero.builds ?? []).map((build) => ({ ...build, equippedSpellIds: build.equippedSpellIds.slice(0, SPELL_SLOTS) })),
+    });
+  }
+  if (trimmed) {
+    await trimBatch.commit();
     heroesSnap = await adminDb.collection("heroes").where("ownerId", "==", uid).get();
   }
 

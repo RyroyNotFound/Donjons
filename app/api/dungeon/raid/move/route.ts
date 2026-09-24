@@ -25,7 +25,7 @@ export const POST = withAuth(async (uid, request) => {
   const { raid: nextRaid, newLog } = applyMove(raid, { row, col }, rng);
 
   await raidRef.set(nextRaid);
-  if (nextRaid.status !== "in_progress") await finalizeRaid(nextRaid);
+  const crystalsEarned = nextRaid.status !== "in_progress" ? await finalizeRaid(nextRaid) : undefined;
 
-  return NextResponse.json(toRaidView(nextRaid, newLog));
+  return NextResponse.json({ ...toRaidView(nextRaid, newLog), crystalsEarned });
 });

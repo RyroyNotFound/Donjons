@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { withAuth, GameError } from "@/lib/api/handler";
-import { getZone } from "@/lib/game/content/zones";
-import type { Expedition, Hero } from "@/types/game";
+import { getZone, isZoneUnlocked } from "@/lib/game/content/zones";
+import { getDifficulty, isDifficulty, isDifficultyUnlocked } from "@/lib/game/content/difficulties";
+import type { Difficulty, Expedition, Hero, UserProfile } from "@/types/game";
 
 interface Body {
   zoneId: string;
   heroIds: string[];
+  difficulty?: Difficulty;
 }
 
-/** Sends a team of idle heroes to farm a zone for `zone.durationSec`. */
+/** Sends a team of idle heroes into a zone's arena run (the zone, and that difficulty on it, must be unlocked). */
 export const POST = withAuth(async (uid, request) => {
-  const { zoneId, heroIds } = (await request.json()) as Body;
+  const { zoneId, heroIds, difficulty: rawDifficulty } = (await request.json()) as Body;
   const zone = getZone(zoneId);
+  if (rawDifficulty !== undefined && !isDifficulty(rawDifficulty)) throw new GameError("Difficulté inconnue");
+  const difficulty: Difficulty = rawDifficulty ?? "normal";
 
   if (heroIds.length === 0) throw new GameError("Sélectionnez au moins un héros");
   if (heroIds.length > zone.heroSlots) {
@@ -24,7 +28,17 @@ export const POST = withAuth(async (uid, request) => {
 
   await adminDb.runTransaction(async (tx) => {
     const heroRefs = heroIds.map((id) => adminDb.collection("heroes").doc(id));
-    const heroSnaps = await Promise.all(heroRefs.map((ref) => tx.get(ref)));
+    const [userSnap, ...heroSnaps] = await Promise.all([
+      tx.get(adminDb.collection("users").doc(uid)),
+      ...heroRefs.map((ref) => tx.get(ref)),
+    ]);
+    const user = userSnap.data() as UserProfile | undefined;
+    if (!isZoneUnlocked(zone, user?.expeditionRecords)) {
+      throw new GameError("Zone verrouillée : terminez d'abord la zone précédente");
+    }
+    if (!isDifficultyUnlocked(zone.id, difficulty, user?.expeditionRecords)) {
+      throw new GameError(`Difficulté « ${getDifficulty(difficulty).name} » verrouillée : battez le boss dans la difficulté précédente`);
+    }
 
     for (const snap of heroSnaps) {
       if (!snap.exists) throw new GameError("Héros introuvable");
@@ -42,6 +56,7 @@ export const POST = withAuth(async (uid, request) => {
       ownerId: uid,
       zoneId,
       heroIds,
+      difficulty,
       startedAt,
       durationSec: zone.durationSec,
       status: "active",

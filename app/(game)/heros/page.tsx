@@ -8,7 +8,7 @@ import { tryGetClass } from "@/lib/game/content/classes";
 import { resolveHeroStats } from "@/lib/game/engine/stats";
 import { xpToNextLevel } from "@/lib/game/engine/xp";
 import { heroSlotsForLevel } from "@/lib/game/content/dungeonUpgrades";
-import { MAX_HEROES } from "@/lib/game/economy";
+import { heroSlotCost, MAX_HEROES } from "@/lib/game/economy";
 import { callApi } from "@/lib/api/client";
 import { Card } from "@/components/Card";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -41,7 +41,10 @@ export default function HerosPage() {
 
   const heroSlotsLevel = dungeonUpgrades?.levels.heroSlots ?? 0;
   const slots = Math.min(MAX_HEROES, heroSlotsForLevel(heroSlotsLevel));
-  const canRecruit = heroes.length < slots;
+  const freeSlot = heroes.length < slots;
+  const atMax = slots >= MAX_HEROES;
+  const slotCost = heroSlotCost(heroSlotsLevel);
+  const canRecruit = freeSlot || (!atMax && (profile?.gold ?? 0) >= slotCost);
 
   async function recruit() {
     setError(null);
@@ -71,11 +74,14 @@ export default function HerosPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-400">
-            Emplacements de héros : <span className="text-slate-100">{heroes.length}/{slots}</span> — améliorez
-            &laquo;&nbsp;Antre des héros&nbsp;&raquo; dans les améliorations du donjon pour en débloquer d&apos;autres.
+            Emplacements de héros : <span className="text-slate-100">{heroes.length}/{slots}</span>
+            {!freeSlot && !atMax && (
+              <> — un nouvel emplacement coûte <span className="text-amber-300">{slotCost} or</span>.</>
+            )}
+            {atMax && !freeSlot && <> — maximum atteint.</>}
           </p>
           <Button size="sm" onClick={recruit} disabled={busy || !canRecruit}>
-            Recruter un héros
+            {freeSlot || atMax ? "Recruter un héros" : `Recruter (${slotCost} or)`}
           </Button>
         </div>
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}

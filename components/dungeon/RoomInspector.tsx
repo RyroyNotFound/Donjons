@@ -1,6 +1,7 @@
 "use client";
 
-import { BOSSES, MONSTERS, TRAPS, trapTierUnlockedAtLevel } from "@/lib/game/content/dungeon";
+import { BOSSES, MONSTERS, TRAPS, TRAP_STACK_FALLOFF, trapTierUnlockedAtLevel } from "@/lib/game/content/dungeon";
+import { ELEMENT_ICON, ELEMENT_LABEL } from "@/lib/game/engine/elements";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { selectClass } from "@/components/Field";
@@ -37,14 +38,19 @@ export function RoomInspector({
     onChange({ ...room, trapIds: next });
   }
 
-  function toggleMonster(monsterId: string) {
+  // Monsters can be stacked (several of the same kind); traps can't (one of each per room).
+  function addMonster(monsterId: string) {
     const current = room.monsterRefIds ?? [];
-    const next = current.includes(monsterId)
-      ? current.filter((id) => id !== monsterId)
-      : current.length < maxOccupants
-        ? [...current, monsterId]
-        : current;
-    onChange({ ...room, monsterRefIds: next });
+    if (current.length >= maxOccupants) return;
+    onChange({ ...room, monsterRefIds: [...current, monsterId] });
+  }
+
+  function removeMonster(monsterId: string) {
+    const current = [...(room.monsterRefIds ?? [])];
+    const index = current.lastIndexOf(monsterId);
+    if (index < 0) return;
+    current.splice(index, 1);
+    onChange({ ...room, monsterRefIds: current });
   }
 
   const ownedMonsters = MONSTERS.filter((m) => (capturedMonsters[m.id] ?? 0) > 0);
@@ -69,29 +75,50 @@ export function RoomInspector({
             const selected = (room.trapIds ?? []).includes(t.id);
             return (
               <Chip key={t.id} selected={selected} disabled={!unlocked} onClick={() => toggleTrap(t.id)} fullWidth>
-                {t.name} · {t.cost} pts · {t.baseCharges} charge(s)
+                {t.element ? `${ELEMENT_ICON[t.element]} ` : ""}
+                {t.name} · {Math.round(t.damagePercent * 100)} % PV · {t.cost} pts · {t.baseCharges} charge(s)
                 {!unlocked && " (verrouillé)"}
               </Chip>
             );
           })}
-          <p className="text-xs text-slate-500">{maxOccupants} piège(s) max par salle.</p>
+          <p className="text-xs text-slate-500">
+            {maxOccupants} piège(s) différent(s) max par salle. Chaque piège supplémentaire dans la même salle frappe {Math.round((1 - TRAP_STACK_FALLOFF) * 100)} % moins fort
+            que le précédent. Les dégâts sont réduits par la résistance aux pièges des attaquants (et par leur résistance à l&apos;élément du piège) :
+            varier les éléments complique leur préparation.
+          </p>
         </div>
       )}
 
       {room.type === "monster" && (
         <div className="space-y-1.5">
           {[...ownedMonsters, ...BOSSES].map((m) => {
-            const selected = (room.monsterRefIds ?? []).includes(m.id);
+            const count = (room.monsterRefIds ?? []).filter((id) => id === m.id).length;
+            const full = (room.monsterRefIds ?? []).length >= maxOccupants;
             return (
-              <Chip key={m.id} selected={selected} onClick={() => toggleMonster(m.id)} fullWidth>
-                {m.name} · {m.cost} pts{m.isBoss ? " · Boss" : ` · x${capturedMonsters[m.id] ?? 0}`}
-              </Chip>
+              <div key={m.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300">
+                <span>
+                  {m.element ? `${ELEMENT_ICON[m.element]} ` : ""}
+                  {m.name} · {m.cost} pts{m.isBoss ? " · Boss" : ` · ${capturedMonsters[m.id] ?? 0} capturé(s)`}
+                  {m.element && <span className="text-xs text-slate-500"> (attaque {ELEMENT_LABEL[m.element].toLowerCase()})</span>}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => removeMonster(m.id)} disabled={count === 0}>
+                    −
+                  </Button>
+                  <span className={`w-5 text-center ${count > 0 ? "text-amber-300" : "text-slate-500"}`}>{count}</span>
+                  <Button size="sm" variant="ghost" onClick={() => addMonster(m.id)} disabled={full}>
+                    +
+                  </Button>
+                </span>
+              </div>
             );
           })}
           {ownedMonsters.length === 0 && (
             <p className="text-xs text-slate-500">Aucun monstre capturé pour l&apos;instant.</p>
           )}
-          <p className="text-xs text-slate-500">{maxOccupants} monstre(s) max par salle.</p>
+          <p className="text-xs text-slate-500">
+            {maxOccupants} monstre(s) max par salle. Leurs stats suivent le niveau de défense de votre donjon (le niveau moyen de vos 4 meilleurs héros).
+          </p>
         </div>
       )}
 

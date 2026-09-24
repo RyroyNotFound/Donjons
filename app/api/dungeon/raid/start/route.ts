@@ -10,12 +10,19 @@ import {
 } from "@/lib/game/engine/dungeonRaid";
 import { getBotDungeon, isBotDefenderId } from "@/lib/game/content/botDungeons";
 import { ENTRANCE_CELL } from "@/lib/game/content/dungeon";
-import { getHeroRole, primaryRaidEffect } from "@/lib/game/engine/stats";
+import { getHeroRole, heroElement, primaryRaidEffect } from "@/lib/game/engine/stats";
+import { resistancesOf } from "@/lib/game/engine/elements";
+import {
+  DEFAULT_UPGRADE_LEVELS,
+  dungeonDefenseLevel,
+  trapDamageMultiplierForLevel,
+} from "@/lib/game/content/dungeonUpgrades";
 import type {
   BattleReward,
   Dungeon,
   DungeonRaid,
   DungeonUpgrades,
+  Hero,
   RaidHeroState,
   UserProfile,
 } from "@/types/game";
@@ -24,17 +31,6 @@ interface Body {
   defenderId: string;
   heroIds: string[];
 }
-
-const DEFAULT_UPGRADE_LEVELS: DungeonUpgrades["levels"] = {
-  expansion: 0,
-  architecture: 0,
-  defenderVigor: 0,
-  trapcraft: 0,
-  beastMastery: 0,
-  hazardDensity: 0,
-  vaultCapacity: 0,
-  heroSlots: 0,
-};
 
 /** Starts a new dungeon raid: resolves the target's layout into combat-ready state and places the attacker at the entrance. */
 export const POST = withAuth(async (uid, request) => {
@@ -59,6 +55,7 @@ export const POST = withAuth(async (uid, request) => {
   let dungeon: Dungeon;
   let totalLootPool: BattleReward;
   let upgrades: DungeonUpgrades;
+  const attackerProfile = (await adminDb.collection("users").doc(uid).get()).data() as UserProfile | undefined;
 
   if (isBotDefenderId(defenderId)) {
     const bot = getBotDungeon(defenderId);
@@ -69,25 +66,32 @@ export const POST = withAuth(async (uid, request) => {
       roomCount: bot.rooms.length - 1,
       treasureRoomCount: bot.rooms.filter((r) => r.type === "treasure").length,
       pointsSpent: 0,
+      defenseLevel: bot.defenseLevel,
       updatedAt: 0,
     };
     totalLootPool = bot.loot;
     upgrades = { ownerId: defenderId, levels: DEFAULT_UPGRADE_LEVELS, updatedAt: 0 };
   } else {
-    const [dungeonSnap, defenderSnap, upgradesSnap] = await Promise.all([
+    const [dungeonSnap, defenderSnap, upgradesSnap, defenderHeroesSnap] = await Promise.all([
       adminDb.collection("dungeons").doc(defenderId).get(),
       adminDb.collection("users").doc(defenderId).get(),
       adminDb.collection("dungeonUpgrades").doc(defenderId).get(),
+      adminDb.collection("heroes").where("ownerId", "==", defenderId).get(),
     ]);
     if (!dungeonSnap.exists || !defenderSnap.exists) throw new GameError("Ce donjon n'existe pas");
     dungeon = dungeonSnap.data() as Dungeon;
+    // Live defense level: the dungeon keeps up with its owner's heroes even without a re-save.
+    const liveLevel = dungeonDefenseLevel(
+      defenderHeroesSnap.docs.map((d) => d.data() as Hero).filter((h) => h.classId).map((h) => h.level),
+    );
+    dungeon = { ...dungeon, defenseLevel: Math.max(dungeon.defenseLevel ?? 1, liveLevel) };
     if (dungeon.treasureRoomCount < 1) throw new GameError("Ce donjon n'a pas de salle au trésor");
     upgrades = (upgradesSnap.data() as DungeonUpgrades | undefined) ?? {
       ownerId: defenderId,
       levels: DEFAULT_UPGRADE_LEVELS,
       updatedAt: 0,
     };
-    totalLootPool = computeLootPool(defenderSnap.data() as UserProfile, upgrades);
+    totalLootPool = computeLootPool(defenderSnap.data() as UserProfile, upgrades, dungeon.defenseLevel);
   }
 
   let garrison: GarrisonMember[] = [];
@@ -102,6 +106,7 @@ export const POST = withAuth(async (uid, request) => {
         stats,
         raidEffectTag: raidEffect?.tag,
         raidEffectBonus: raidEffect?.bonus,
+        element: heroElement(hero),
       };
     });
   }
@@ -121,6 +126,11 @@ export const POST = withAuth(async (uid, request) => {
       defPhys: stats.defPhys,
       defMag: stats.defMag,
       spd: stats.spd,
+      trapRes: stats.trapRes,
+      crit: stats.crit,
+      critDmg: stats.critDmg,
+      element: heroElement(hero),
+      res: resistancesOf(stats),
       raidEffectTag: raidEffect?.tag,
       raidEffectBonus: raidEffect?.bonus,
     };
@@ -139,9 +149,12 @@ export const POST = withAuth(async (uid, request) => {
     treasureRoomsReached: [],
     totalLootPool,
     bankedLoot: { gold: 0, resources: {} },
+    trapDamageMultiplier: trapDamageMultiplierForLevel(upgrades.levels.trapcraft ?? 0),
     status: "in_progress",
     log: [],
     seed: `${uid}:${defenderId}:${Date.now()}`,
+    attackerName: attackerProfile?.displayName ?? "Aventurier inconnu",
+    attackerLevel: dungeonDefenseLevel(resolvedHeroes.map(({ hero }) => hero.level)),
     startedAt: Date.now(),
     updatedAt: Date.now(),
   };

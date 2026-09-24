@@ -8,7 +8,9 @@ import { CLASSES, tryGetClass } from "@/lib/game/content/classes";
 import { SPELLS } from "@/lib/game/content/spells";
 import { MASTERIES } from "@/lib/game/content/masteries";
 import { getTalentsForClass } from "@/lib/game/content/talents";
-import { resolveHeroStats } from "@/lib/game/engine/stats";
+import { heroElement, resolveHeroStats } from "@/lib/game/engine/stats";
+import { ELEMENT_ICON, ELEMENT_LABEL, ELEMENTS, RES_KEY } from "@/lib/game/engine/elements";
+import { itemTotalStats } from "@/lib/game/engine/items";
 import { formatStatBonus, RAID_EFFECT_LABEL, ARENA_EFFECT_LABEL } from "@/lib/game/statFormat";
 import { xpToNextLevel } from "@/lib/game/engine/xp";
 import {
@@ -177,6 +179,38 @@ export default function HeroDetailPage() {
             <Panel as="li" padding="sm">Attaque mag. : {stats.atkMag}</Panel>
             <Panel as="li" padding="sm">Défense phys. : {stats.defPhys}</Panel>
             <Panel as="li" padding="sm">Défense mag. : {stats.defMag}</Panel>
+            <Panel as="li" padding="sm">Critique : {stats.crit}%</Panel>
+            <Panel as="li" padding="sm">Dégâts crit. : +{stats.critDmg}%</Panel>
+            <Panel as="li" padding="sm" className="col-span-2">Rés. pièges (raids) : {stats.trapRes}%</Panel>
+          </ul>
+          {(() => {
+            const element = heroElement(hero);
+            return (
+              <p className="mt-3 text-xs text-slate-400">
+                Affinité :{" "}
+                {element ? (
+                  <span className="text-slate-200">
+                    {ELEMENT_ICON[element]} {ELEMENT_LABEL[element]}
+                  </span>
+                ) : (
+                  <span className="text-slate-500">neutre (équipez un sort élémentaire)</span>
+                )}
+              </p>
+            );
+          })()}
+          <ul className="mt-2 flex flex-wrap gap-2 text-xs">
+            {ELEMENTS.map((element) => {
+              const value = stats[RES_KEY[element]];
+              return (
+                <li
+                  key={element}
+                  title={`Résistance ${ELEMENT_LABEL[element].toLowerCase()}`}
+                  className={`rounded-full border border-white/10 px-2 py-0.5 ${value > 0 ? "text-emerald-300" : value < 0 ? "text-red-400" : "text-slate-500"}`}
+                >
+                  {ELEMENT_ICON[element]} {value}%
+                </li>
+              );
+            })}
           </ul>
         </Card>
 
@@ -198,7 +232,8 @@ export default function HeroDetailPage() {
                     <option value="">— Aucun —</option>
                     {options.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name} ({item.rarity})
+                        {item.name}
+                        {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""} — {formatStatBonus(itemTotalStats(item))}
                       </option>
                     ))}
                   </select>
@@ -273,6 +308,11 @@ export default function HeroDetailPage() {
                           {spell.name} <span className="text-xs text-slate-500">Rang {rank}/{MAX_COMPONENT_RANK}</span>
                           {classMatch && (
                             <span className="ml-1 text-xs text-emerald-400">★ bonus de classe</span>
+                          )}
+                          {spell.element && (
+                            <span className="ml-1 text-xs text-slate-300">
+                              {ELEMENT_ICON[spell.element]} {ELEMENT_LABEL[spell.element]}
+                            </span>
                           )}
                         </p>
                         <p className="text-xs text-slate-400">{spell.description}</p>

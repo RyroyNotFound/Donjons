@@ -13,3 +13,7 @@ export const RARITY_WEIGHTS: Record<GachaRarity, number> = {
 export const PITY_RARE_THRESHOLD = 10;
 export const PITY_EPIQUE_THRESHOLD = 30;
 export const PITY_LEGENDAIRE_THRESHOLD = 60;
+/** While an account owns no class at all, a class is guaranteed by this pull (total pulls on the
+ *  account) — the starting crystals are enough, so a new player always gets a real first class
+ *  from the gacha itself (classes are never granted for free). */
+export const FIRST_CLASS_GUARANTEE_PULL = 10;

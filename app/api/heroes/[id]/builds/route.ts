@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { SPELL_SLOTS } from "@/lib/game/economy";
 import { adminDb } from "@/lib/firebase/admin";
 import { withAuth, GameError } from "@/lib/api/handler";
 import type { Hero, HeroBuild } from "@/types/game";
@@ -53,7 +54,7 @@ export const POST = withAuth<RouteContext>(async (uid, request, { params }) => {
   // Spells work regardless of class, so applying a build never needs to drop any of them.
   await heroRef.update({
     classId: build.classId ?? null,
-    equippedSpellIds: build.equippedSpellIds,
+    equippedSpellIds: build.equippedSpellIds.slice(0, SPELL_SLOTS),
     equippedMasteryIds: build.equippedMasteryIds,
   });
 

@@ -5,12 +5,14 @@ import { TALENTS } from "@/lib/game/content/talents";
 import { SPELLS } from "@/lib/game/content/spells";
 import { MASTERIES } from "@/lib/game/content/masteries";
 import {
+  FIRST_CLASS_GUARANTEE_PULL,
   PITY_EPIQUE_THRESHOLD,
   PITY_LEGENDAIRE_THRESHOLD,
   PITY_RARE_THRESHOLD,
   RARITY_WEIGHTS,
 } from "@/lib/game/content/gacha";
 import { MAX_COMPONENT_RANK } from "@/lib/game/economy";
+import { MAXED_DUPLICATE_STARDUST_MULTIPLIER, STARDUST_PER_PULL } from "@/lib/game/content/observatory";
 import type { GachaPityState, GachaPullResult, GachaRarity } from "@/types/game";
 
 const ALL_CLASS_IDS = CLASSES.map((c) => c.id);
@@ -130,9 +132,14 @@ export function performPulls(
   const results: GachaPullResult[] = [];
 
   for (let i = 0; i < count; i++) {
-    const rarity = rollRarity(rng, pity);
+    const firstClassDue = unlockedClasses.length === 0 && pity.totalPulls + 1 >= FIRST_CLASS_GUARANTEE_PULL;
+    const rarity = firstClassDue ? "legendaire" : rollRarity(rng, pity);
     pity = updatePity(pity, rarity);
+    // With no class owned, a légendaire always lands on a (new) class — see classOrTokens.
     const reward = rollReward(rarity, rng, { unlockedClasses, componentRanks });
+    // Every pull leaves stardust for the Observatoire; a maxed duplicate leaves more.
+    reward.stardust =
+      STARDUST_PER_PULL[rarity] * (reward.kind === "rankToken" ? 1 + MAXED_DUPLICATE_STARDUST_MULTIPLIER : 1);
 
     if (reward.refId) {
       if (reward.kind === "class") unlockedClasses.push(reward.refId);

@@ -12,7 +12,12 @@
 // only — a boosted per-round heal instead of attacking at all. A spell works
 // regardless of the caster's class; matching the spell's own class (raidEffectBonus)
 // just makes the effect stronger — see RAID_MAGNITUDE below.
+//
+// Every hit can crit (the actor's crit/critDmg) and carries the actor's element (a hero's
+// first equipped elemental spell, a monster's own), scaled by the target's resistance to it.
 
+import { critChance, critMultiplier, elementalMultiplier, MAX_TRAP_RESISTANCE } from "@/lib/game/engine/elements";
+import { TRAP_STACK_FALLOFF } from "@/lib/game/content/dungeon";
 import type { DungeonOccupant, RaidEffectTag, RaidHeroState, RaidLogEntry, Role, TrapDefinition } from "@/types/game";
 
 export type RoomOccupant = DungeonOccupant;
@@ -31,7 +36,55 @@ const RAID_MAGNITUDE: Record<RaidEffectTag, { base: number; bonus: number }> = {
   shield: { base: 0.3, bonus: 0.45 }, // damage reduction on the next hit taken, as a ratio
   stun: { base: 1, bonus: 1 }, // binary — no magnitude to scale
   heal: { base: 1.5, bonus: 1.8 }, // per-round heal multiplier
+  disarm: { base: 0.35, bonus: 0.5 }, // party-wide trap damage reduction (strongest disarmer counts)
+  scout: { base: 1, bonus: 1 }, // map utility, handled by the raid view — no combat effect
 };
+
+/** Party-wide trap damage reduction from its best "disarm" hero (0 = none). */
+export function partyDisarm(heroes: Pick<RaidHeroState, "hp" | "raidEffectTag" | "raidEffectBonus">[]): number {
+  let best = 0;
+  for (const h of heroes) {
+    if (h.hp > 0 && h.raidEffectTag === "disarm") best = Math.max(best, magnitude("disarm", !!h.raidEffectBonus));
+  }
+  return best;
+}
+
+/** Trap → fight synergy: a hero hit by a trap for at least WEAKEN_THRESHOLD of its max HP gains an
+ *  "Affaibli" stack (max MAX_WEAKENED). In its next fight each stack cuts its damage and raises the
+ *  damage it takes by WEAKEN_PER_STACK; the fight then clears them. Trap resistance and disarm keep
+ *  hits under the threshold (healers only restore HP) — so a dungeon mixing traps and
+ *  monsters is worth more than the sum of its rooms. */
+export const WEAKEN_THRESHOLD = 0.08;
+export const MAX_WEAKENED = 2;
+export const WEAKEN_PER_STACK = 0.2;
+
+/** Traps wear a party down, monsters finish it: one trap room can take at most this share of a hero's
+ *  max HP (before trapRes/element/disarm reductions, so counters still matter in heavy rooms), and a
+ *  trap never kills — it leaves at least 1 HP. */
+export const TRAP_ROOM_DAMAGE_CAP = 0.28;
+
+/** Share of max HP every living HEAL-role hero restores to the party after each dangerous room. */
+const MARCH_HEAL = 0.06;
+const MARCH_HEAL_WITH_HEAL_SPELL = 0.1;
+
+/** Out-of-combat healing between rooms: each living healer patches the whole party up a bit. */
+export function resolveMarchHeal(roomKey: string, heroes: RaidHeroState[]): { heroesAfter: RaidHeroState[]; log: RaidLogEntry[] } {
+  const heroesAfter = heroes.map((h) => ({ ...h }));
+  const healers = heroesAfter.filter((h) => h.hp > 0 && h.role === "HEAL");
+  if (healers.length === 0) return { heroesAfter, log: [] };
+  const share = healers.reduce((s, h) => s + (h.raidEffectTag === "heal" ? MARCH_HEAL_WITH_HEAL_SPELL : MARCH_HEAL), 0);
+  let healed = 0;
+  for (const h of heroesAfter) {
+    if (h.hp <= 0 || h.hp >= h.maxHp) continue;
+    const amount = Math.min(h.maxHp - h.hp, Math.round(h.maxHp * share));
+    h.hp += amount;
+    healed += amount;
+  }
+  const log: RaidLogEntry[] = healed > 0
+    ? [{ roomKey, kind: "heal", message: `${healers.map((h) => h.name).join(" et ")} soigne${healers.length > 1 ? "nt" : ""} l'équipe entre deux salles (+${healed} PV).` }]
+    : [];
+  return { heroesAfter, log };
+}
 
 function magnitude(tag: RaidEffectTag, bonus: boolean): number {
   return bonus ? RAID_MAGNITUDE[tag].bonus : RAID_MAGNITUDE[tag].base;
@@ -91,7 +144,8 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
     if (aliveTargets.length === 0) break;
     const target = pickTarget(rng, aliveTargets);
     const { value, type } = attackPower(actor);
-    const tag = actor.raidEffectTag;
+    // Utility tags (disarm/scout) work outside combat: in a fight the hero attacks plainly.
+    const tag = actor.raidEffectTag === "disarm" || actor.raidEffectTag === "scout" ? undefined : actor.raidEffectTag;
     const bonus = !!actor.raidEffectBonus;
 
     let rawDamage = damageOf(rng, value);
@@ -101,6 +155,16 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
     const rawDef = type === "phys" ? target.defPhys : target.defMag;
     const effectiveDef = tag === "pierce" ? rawDef * (1 - magnitude(tag, bonus)) : rawDef;
     let mitigated = Math.max(1, rawDamage - Math.round(effectiveDef * 0.5));
+    const crit = rng() < critChance(actor.crit);
+    if (crit) mitigated = Math.round(mitigated * critMultiplier(actor.critDmg));
+    const elemMul = elementalMultiplier(actor.element, actor.element ? target.res?.[actor.element] : 0);
+    mitigated = Math.max(1, Math.round(mitigated * elemMul));
+    // Weakened heroes hit softer and are hit harder (only heroes carry stacks).
+    const actorWeak = (actor as { weakened?: number }).weakened ?? 0;
+    const targetWeak = (target as { weakened?: number }).weakened ?? 0;
+    if (actorWeak || targetWeak) {
+      mitigated = Math.max(1, Math.round(mitigated * (1 - WEAKEN_PER_STACK * actorWeak) * (1 + WEAKEN_PER_STACK * targetWeak)));
+    }
 
     const shieldReduction = effect.shielded.get(target.id);
     if (shieldReduction) {
@@ -112,7 +176,7 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
     log.push({
       roomKey,
       kind: "attack",
-      message: `${actor.name} inflige ${mitigated} dégâts à ${target.name} (${target.hp} PV restants).`,
+      message: `${actor.name} inflige ${mitigated} dégâts${crit ? " critiques" : ""} à ${target.name}${elemMul > 1 ? " (point faible !)" : elemMul < 1 ? " (résiste)" : ""} (${target.hp} PV restants).`,
       actorId: actor.id,
       targetId: target.id,
       hpAfter: target.hp,
@@ -185,6 +249,14 @@ export function resolveRoomBattle(
   const room = defenders.map((d) => ({ ...d }));
   const log: RaidLogEntry[] = [];
   const effect: EffectState = { stunned: new Set(), shielded: new Map() };
+  const weak = attackers.filter((a) => a.hp > 0 && (a.weakened ?? 0) > 0);
+  if (weak.length > 0) {
+    log.push({
+      roomKey,
+      kind: "info",
+      message: `Encore sonnés par les pièges, ${weak.map((a) => `${a.name} (×${a.weakened})`).join(", ")} combat${weak.length > 1 ? "tent" : ""} affaibli${weak.length > 1 ? "s" : ""}.`,
+    });
+  }
 
   let round = 1;
   while (
@@ -199,6 +271,7 @@ export function resolveRoomBattle(
   }
 
   const cleared = room.every((d) => d.hp <= 0) && attackers.some((a) => a.hp > 0);
+  for (const a of attackers) a.weakened = 0;
   return {
     outcome: cleared ? "cleared" : "wiped",
     heroesAfter: attackers,
@@ -212,25 +285,45 @@ export interface TrapTriggerResult {
   wiped: boolean;
 }
 
-/** Applies a trap's damage (a % of max HP) to the whole attacking team. */
+/** Applies a trap's damage (a % of max HP) to the whole attacking team. `stackIndex` is the trap's
+ *  position in its room (each extra stacked trap hits for TRAP_STACK_FALLOFF less); each hero's
+ *  trapRes, its resistance to the trap's element and the party's disarm aura all reduce the hit. */
 export function resolveTrapTrigger(
   roomKey: string,
   heroes: RaidHeroState[],
   trap: TrapDefinition,
   rng: () => number,
+  stackIndex = 0,
+  disarm = 0,
+  /** The defender's Trapcraft bonus. */
+  damageMultiplier = 1,
+  /** Hero id -> share of max HP this room's traps may still deal (see TRAP_ROOM_DAMAGE_CAP). Mutated. */
+  roomBudget?: Map<string, number>,
 ): TrapTriggerResult {
   const heroesAfter = heroes.map((h) => ({ ...h }));
   const log: RaidLogEntry[] = [];
+  const stackMul = Math.pow(TRAP_STACK_FALLOFF, stackIndex);
 
   for (const hero of heroesAfter) {
     if (hero.hp <= 0) continue;
     const variance = 0.9 + rng() * 0.2;
-    const dmg = Math.max(1, Math.round(hero.maxHp * trap.damagePercent * variance));
-    hero.hp = Math.max(0, hero.hp - dmg);
+    const trapRes = Math.min(MAX_TRAP_RESISTANCE, Math.max(0, hero.trapRes ?? 0)) / 100;
+    const elemMul = elementalMultiplier(trap.element, trap.element ? hero.res?.[trap.element] : 0);
+    let raw = trap.damagePercent * variance * stackMul * damageMultiplier;
+    if (roomBudget) {
+      const left = roomBudget.get(hero.id) ?? TRAP_ROOM_DAMAGE_CAP;
+      raw = Math.min(raw, left);
+      roomBudget.set(hero.id, left - raw);
+    }
+    // Non-lethal: a trap leaves at least 1 HP.
+    const dmg = Math.min(hero.hp - 1, Math.max(raw > 0 ? 1 : 0, Math.round(hero.maxHp * raw * (1 - trapRes) * (1 - disarm) * elemMul)));
+    if (dmg <= 0) continue;
+    hero.hp -= dmg;
+    if (hero.hp > 0 && dmg >= hero.maxHp * WEAKEN_THRESHOLD) hero.weakened = Math.min(MAX_WEAKENED, (hero.weakened ?? 0) + 1);
     log.push({
       roomKey,
       kind: "trap",
-      message: `${trap.name} inflige ${dmg} dégâts à ${hero.name} (${hero.hp} PV restants).`,
+      message: `${trap.name} inflige ${dmg} dégâts à ${hero.name} (${hero.hp} PV restants${hero.hp === 1 ? ", de justesse" : ""}).`,
       targetId: hero.id,
       hpAfter: hero.hp,
     });

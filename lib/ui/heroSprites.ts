@@ -11,6 +11,8 @@ export const HERO_SPRITE_BY_ROLE: Record<Role, string> = {
 export const CLASS_TINT: Record<string, string> = {
   guerrier: "none",
   archer: "hue-rotate(75deg) saturate(1.3)",
+  mage: "hue-rotate(250deg) saturate(1.5) brightness(1.1)",
+  assassin: "grayscale(0.3) hue-rotate(290deg) brightness(0.75)",
   pretre: "hue-rotate(200deg) brightness(1.25) saturate(0.8)",
   druide: "hue-rotate(70deg) saturate(1.2)",
   paladin: "hue-rotate(35deg) saturate(1.3) brightness(1.1)",

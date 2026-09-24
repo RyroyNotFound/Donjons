@@ -1,24 +1,13 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { withAuth, GameError } from "@/lib/api/handler";
-import { getUpgradeTrack } from "@/lib/game/content/dungeonUpgrades";
+import { DEFAULT_UPGRADE_LEVELS, getUpgradeTrack } from "@/lib/game/content/dungeonUpgrades";
 import { dungeonUpgradeCost } from "@/lib/game/dungeonEconomy";
 import type { DungeonUpgradeTrackId, DungeonUpgrades, ResourceKind, UserProfile } from "@/types/game";
 
 interface Body {
   trackId: DungeonUpgradeTrackId;
 }
-
-const DEFAULT_UPGRADE_LEVELS: DungeonUpgrades["levels"] = {
-  expansion: 0,
-  architecture: 0,
-  defenderVigor: 0,
-  trapcraft: 0,
-  beastMastery: 0,
-  hazardDensity: 0,
-  vaultCapacity: 0,
-  heroSlots: 0,
-};
 
 /** Spends resources to raise one dungeon-upgrade track by a level. */
 export const POST = withAuth(async (uid, request) => {

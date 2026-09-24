@@ -10,10 +10,12 @@ import {
 } from "@/lib/game/content/dungeon";
 import { validateDungeonLayout } from "@/lib/game/engine/dungeonLayout";
 import {
+  DEFAULT_UPGRADE_LEVELS,
+  dungeonDefenseLevel,
+  dungeonPointBudget,
   garrisonCapacityForLevel,
   maxOccupantsForLevel,
   maxRoomsForLevel,
-  pointBudgetForLevel,
 } from "@/lib/game/content/dungeonUpgrades";
 import type { Dungeon, DungeonRoomCell, DungeonUpgrades, Hero, UserProfile } from "@/types/game";
 
@@ -21,17 +23,6 @@ interface Body {
   rooms: DungeonRoomCell[];
   garrisonHeroIds: string[];
 }
-
-const DEFAULT_UPGRADE_LEVELS: DungeonUpgrades["levels"] = {
-  expansion: 0,
-  architecture: 0,
-  defenderVigor: 0,
-  trapcraft: 0,
-  beastMastery: 0,
-  hazardDensity: 0,
-  vaultCapacity: 0,
-  heroSlots: 0,
-};
 
 /** Saves the caller's dungeon layout after validating connectivity, upgrade-gated caps/budget, and
     that every placed non-boss monster was actually captured (via expedition drop or gacha fragment). */
@@ -68,6 +59,7 @@ export const POST = withAuth(async (uid, request) => {
       const trapIds = room.trapIds ?? [];
       if (trapIds.length === 0) throw new GameError("Une salle piège doit contenir au moins un piège");
       if (trapIds.length > maxOccupants) throw new GameError("Trop de pièges empilés dans une salle");
+      if (new Set(trapIds).size !== trapIds.length) throw new GameError("Un même piège ne peut être posé qu'une fois par salle");
       for (const trapId of trapIds) {
         const trap = getTrap(trapId);
         if (levels.trapcraft < trapTierUnlockedAtLevel(trap.tier)) {
@@ -100,7 +92,8 @@ export const POST = withAuth(async (uid, request) => {
     }
   }
 
-  const budget = pointBudgetForLevel(levels.architecture);
+  const defenseLevel = dungeonDefenseLevel([...heroesById.values()].filter((h) => h.classId).map((h) => h.level));
+  const budget = dungeonPointBudget(levels.architecture, defenseLevel);
   if (pointsSpent > budget) throw new GameError(`Budget dépassé : ${pointsSpent}/${budget} points`);
 
   const capacity = garrisonCapacityForLevel(levels.defenderVigor);
@@ -126,6 +119,7 @@ export const POST = withAuth(async (uid, request) => {
     roomCount,
     treasureRoomCount,
     pointsSpent,
+    defenseLevel,
     updatedAt: Date.now(),
   });
 
@@ -142,5 +136,5 @@ export const POST = withAuth(async (uid, request) => {
 
   await batch.commit();
 
-  return NextResponse.json({ ok: true, pointsSpent, roomCount, treasureRoomCount });
+  return NextResponse.json({ ok: true, pointsSpent, roomCount, treasureRoomCount, defenseLevel });
 });

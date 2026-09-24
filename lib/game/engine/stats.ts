@@ -3,7 +3,18 @@ import { getTalentsForClass } from "@/lib/game/content/talents";
 import { tryGetSpell } from "@/lib/game/content/spells";
 import { getMastery } from "@/lib/game/content/masteries";
 import { starRankStatMultiplier, componentRankMultiplier } from "@/lib/game/economy";
-import type { Hero, HeroStats, Item, RaidEffectTag, Role } from "@/types/game";
+import { itemTotalStats } from "@/lib/game/engine/items";
+import {
+  BASE_CRIT,
+  BASE_CRIT_DMG,
+  critChance,
+  critMultiplier,
+  FLAT_STAT_KEYS,
+  fullStats,
+  PERCENT_STAT_KEYS,
+  STAT_KEYS,
+} from "@/lib/game/engine/elements";
+import type { Element, Hero, HeroStats, Item, RaidEffectTag, Role } from "@/types/game";
 
 /** A hero's combat role, derived from its currently-assigned class. Undefined for a classless hero. */
 export function getHeroRole(hero: Hero): Role | undefined {
@@ -21,29 +32,31 @@ export function primaryRaidEffect(hero: Hero): { tag: RaidEffectTag; bonus: bool
   return undefined;
 }
 
-/** Stats a classless hero has before any customization — deliberately weak, to make assigning a class the obvious first move. */
-const CLASSLESS_BASE_STATS: HeroStats = { hp: 10, atkPhys: 1, atkMag: 1, defPhys: 1, defMag: 1, spd: 5 };
-
-function addStats(a: HeroStats, b: Partial<HeroStats>): HeroStats {
-  return {
-    hp: a.hp + (b.hp ?? 0),
-    atkPhys: a.atkPhys + (b.atkPhys ?? 0),
-    atkMag: a.atkMag + (b.atkMag ?? 0),
-    defPhys: a.defPhys + (b.defPhys ?? 0),
-    defMag: a.defMag + (b.defMag ?? 0),
-    spd: a.spd + (b.spd ?? 0),
-  };
+/** The element a hero fights with: that of its first equipped spell carrying one. Undefined = neutral. */
+export function heroElement(hero: Pick<Hero, "equippedSpellIds">): Element | undefined {
+  for (const spellId of hero.equippedSpellIds ?? []) {
+    const element = tryGetSpell(spellId)?.element;
+    if (element) return element;
+  }
+  return undefined;
 }
 
-function scaledBonus(bonus: Partial<HeroStats>, multiplier: number): Partial<HeroStats> {
-  return {
-    hp: bonus.hp !== undefined ? bonus.hp * multiplier : undefined,
-    atkPhys: bonus.atkPhys !== undefined ? bonus.atkPhys * multiplier : undefined,
-    atkMag: bonus.atkMag !== undefined ? bonus.atkMag * multiplier : undefined,
-    defPhys: bonus.defPhys !== undefined ? bonus.defPhys * multiplier : undefined,
-    defMag: bonus.defMag !== undefined ? bonus.defMag * multiplier : undefined,
-    spd: bonus.spd !== undefined ? bonus.spd * multiplier : undefined,
-  };
+/** Stats a classless hero has before any customization — deliberately weak, to make assigning a class the obvious first move. */
+const CLASSLESS_BASE_STATS: HeroStats = fullStats({
+  hp: 10,
+  atkPhys: 1,
+  atkMag: 1,
+  defPhys: 1,
+  defMag: 1,
+  spd: 5,
+  crit: BASE_CRIT,
+  critDmg: BASE_CRIT_DMG,
+});
+
+function addStats(a: HeroStats, b: Partial<HeroStats>, multiplier = 1): HeroStats {
+  const sum = { ...a };
+  for (const key of STAT_KEYS) sum[key] += (b[key] ?? 0) * multiplier;
+  return sum;
 }
 
 /** Computes a hero's effective combat stats from class, level, talents, equipped spells/masteries and items.
@@ -62,60 +75,38 @@ export function resolveHeroStats(
 
   if (classDef) {
     const levelsAboveOne = Math.max(0, hero.level - 1);
-    stats = {
-      hp: classDef.baseStats.hp + classDef.statGrowthPerLevel.hp * levelsAboveOne,
-      atkPhys: classDef.baseStats.atkPhys + classDef.statGrowthPerLevel.atkPhys * levelsAboveOne,
-      atkMag: classDef.baseStats.atkMag + classDef.statGrowthPerLevel.atkMag * levelsAboveOne,
-      defPhys: classDef.baseStats.defPhys + classDef.statGrowthPerLevel.defPhys * levelsAboveOne,
-      defMag: classDef.baseStats.defMag + classDef.statGrowthPerLevel.defMag * levelsAboveOne,
-      spd: classDef.baseStats.spd + classDef.statGrowthPerLevel.spd * levelsAboveOne,
-    };
+    stats = addStats(fullStats(classDef.baseStats), classDef.statGrowthPerLevel, levelsAboveOne);
 
     for (const node of getTalentsForClass(hero.classId!)) {
       const rank = hero.talents[node.id] ?? 0;
       if (rank <= 0) continue;
-      const perRank = scaledBonus(node.statBonusPerRank, rankMul(node.id));
-      stats = addStats(stats, {
-        hp: (perRank.hp ?? 0) * rank,
-        atkPhys: (perRank.atkPhys ?? 0) * rank,
-        atkMag: (perRank.atkMag ?? 0) * rank,
-        defPhys: (perRank.defPhys ?? 0) * rank,
-        defMag: (perRank.defMag ?? 0) * rank,
-        spd: (perRank.spd ?? 0) * rank,
-      });
+      stats = addStats(stats, node.statBonusPerRank, rank * rankMul(node.id));
     }
 
+    // Star rank scales flat stats only — a % stat (crit, resistances) would snowball.
     const starMultiplier = starRankStatMultiplier(hero.starRank ?? 1);
-    stats = {
-      hp: stats.hp * starMultiplier,
-      atkPhys: stats.atkPhys * starMultiplier,
-      atkMag: stats.atkMag * starMultiplier,
-      defPhys: stats.defPhys * starMultiplier,
-      defMag: stats.defMag * starMultiplier,
-      spd: stats.spd * starMultiplier,
-    };
+    for (const key of FLAT_STAT_KEYS) stats[key] *= starMultiplier;
   } else {
     stats = { ...CLASSLESS_BASE_STATS };
   }
 
-  // Spells are pure combat actions (raid + arena effect tags) — no passive stat bonus.
+  // Spells are pure combat actions (raid + arena effect tags, element) — no passive stat bonus.
 
   for (const masteryId of hero.equippedMasteryIds ?? []) {
-    stats = addStats(stats, scaledBonus(getMastery(masteryId).statBonus, rankMul(masteryId)));
+    stats = addStats(stats, getMastery(masteryId).statBonus, rankMul(masteryId));
   }
 
   for (const item of equippedItems) {
-    stats = addStats(stats, item.statBonus);
+    stats = addStats(stats, itemTotalStats(item));
   }
 
-  return {
-    hp: Math.max(1, Math.round(stats.hp)),
-    atkPhys: Math.max(0, Math.round(stats.atkPhys)),
-    atkMag: Math.max(0, Math.round(stats.atkMag)),
-    defPhys: Math.max(0, Math.round(stats.defPhys)),
-    defMag: Math.max(0, Math.round(stats.defMag)),
-    spd: Math.max(0, Math.round(stats.spd)),
-  };
+  const resolved = {} as HeroStats;
+  for (const key of STAT_KEYS) resolved[key] = Math.round(stats[key]);
+  resolved.hp = Math.max(1, resolved.hp);
+  for (const key of ["atkPhys", "atkMag", "defPhys", "defMag", "spd", "crit", "critDmg"] as const) {
+    resolved[key] = Math.max(0, resolved[key]);
+  }
+  return resolved;
 }
 
 /** Total talent points a hero should have earned by their current level (1 per level above 1). */
@@ -123,28 +114,22 @@ export function totalTalentPointsForLevel(level: number): number {
   return Math.max(0, level - 1);
 }
 
-/** Aggregates a party of heroes into the single avatar the arena mini-game controls: HP and ATK add up (more heroes = tankier and harder-hitting), SPD averages (movement/attack pace). */
-export function compositePartyStats(statsList: HeroStats[]): HeroStats {
-  if (statsList.length === 0) return { hp: 1, atkPhys: 1, atkMag: 0, defPhys: 0, defMag: 0, spd: 0 };
+/** The Item documents a hero currently has equipped, looked up in the owner's item list. */
+export function equippedItemsOf(hero: Hero, items: Item[]): Item[] {
+  return Object.values(hero.equipment)
+    .filter(Boolean)
+    .map((id) => items.find((i) => i.id === id))
+    .filter((item): item is Item => Boolean(item));
+}
 
-  const totals = statsList.reduce(
-    (acc, s) => ({
-      hp: acc.hp + s.hp,
-      atkPhys: acc.atkPhys + s.atkPhys,
-      atkMag: acc.atkMag + s.atkMag,
-      defPhys: acc.defPhys + s.defPhys,
-      defMag: acc.defMag + s.defMag,
-      spd: acc.spd + s.spd,
-    }),
-    { hp: 0, atkPhys: 0, atkMag: 0, defPhys: 0, defMag: 0, spd: 0 },
+/** Single "power" number for a hero's resolved stats — compared against ZoneDefinition.recommendedPower.
+ *  Crits count through the expected damage they add; resistances count lightly (they only help
+ *  against the matching element). */
+export function heroPower(stats: HeroStats): number {
+  const bestAtk = Math.max(stats.atkPhys, stats.atkMag);
+  const critBonus = bestAtk * critChance(stats.crit) * (critMultiplier(stats.critDmg) - 1);
+  const resTotal = PERCENT_STAT_KEYS.filter((k) => k.startsWith("res")).reduce((sum, k) => sum + Math.max(0, stats[k] ?? 0), 0);
+  return Math.round(
+    stats.atkPhys + stats.atkMag + stats.defPhys + stats.defMag + stats.hp / 10 + stats.spd + critBonus + resTotal / 5,
   );
-
-  return {
-    hp: totals.hp,
-    atkPhys: totals.atkPhys,
-    atkMag: totals.atkMag,
-    defPhys: Math.round(totals.defPhys / statsList.length),
-    defMag: Math.round(totals.defMag / statsList.length),
-    spd: Math.round(totals.spd / statsList.length),
-  };
 }
