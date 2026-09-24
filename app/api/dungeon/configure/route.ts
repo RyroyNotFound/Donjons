@@ -97,6 +97,9 @@ export const POST = withAuth(async (uid, request) => {
   if (pointsSpent > budget) throw new GameError(`Budget dépassé : ${pointsSpent}/${budget} points`);
 
   const capacity = garrisonCapacityForLevel(levels.defenderVigor);
+  if (new Set(garrisonHeroIds).size !== garrisonHeroIds.length) {
+    throw new GameError("Un même héros ne peut pas monter la garde deux fois");
+  }
   if (garrisonHeroIds.length > capacity) {
     throw new GameError(`Capacité de garnison dépassée : ${garrisonHeroIds.length}/${capacity}`);
   }

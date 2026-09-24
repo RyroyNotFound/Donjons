@@ -53,7 +53,7 @@ export const TOUR_SLIDES: TourSlide[] = [
   {
     icon: "🔨",
     title: "Forge et taverne",
-    text: "Transforme tes ressources en équipement à la Forge, et passe à la Taverne : chaque jour, des marchands de passage y proposent leurs affaires.",
+    text: "Transforme tes ressources en équipement à la Forge, et passe à la Taverne : toutes les 30 minutes, un nouveau visiteur (marchand, conteur, parieur…) s'y attable.",
     where: "Menu Héros → Forge · Aventure → Taverne",
   },
 ];

@@ -39,7 +39,7 @@ export const POST = withAuth(async (uid, request) => {
       return { stardust: stardust - RANK_TOKEN_PACK.price };
     }
 
-    if (!(kind in POOLS) || !refId || !POOLS[kind].includes(refId)) throw new GameError("Élément inconnu");
+    if (!Object.hasOwn(POOLS, kind) || !refId || !POOLS[kind].includes(refId)) throw new GameError("Élément inconnu");
 
     if (kind === "class") {
       if (user.unlockedClasses.includes(refId)) throw new GameError("Classe déjà débloquée");

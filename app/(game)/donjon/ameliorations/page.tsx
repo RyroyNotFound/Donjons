@@ -33,7 +33,7 @@ export default function DungeonUpgradesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Améliorations du donjon"
-        subtitle="Dépensez vos ressources farmées pour renforcer votre donjon."
+        subtitle="Dépensez les ressources récoltées en expédition pour renforcer votre donjon."
       />
 
       {error && <p className="text-sm text-red-400">{error}</p>}

@@ -18,7 +18,8 @@ export const POST = withAuth(async (uid, request) => {
   if (rawDifficulty !== undefined && !isDifficulty(rawDifficulty)) throw new GameError("Difficulté inconnue");
   const difficulty: Difficulty = rawDifficulty ?? "normal";
 
-  if (heroIds.length === 0) throw new GameError("Sélectionnez au moins un héros");
+  if (!Array.isArray(heroIds) || heroIds.length === 0) throw new GameError("Sélectionnez au moins un héros");
+  if (new Set(heroIds).size !== heroIds.length) throw new GameError("Un même héros ne peut pas être sélectionné deux fois");
   if (heroIds.length > zone.heroSlots) {
     throw new GameError(`Cette zone accepte au maximum ${zone.heroSlots} héros`);
   }

@@ -7,7 +7,7 @@ export const ZONES: ZoneDefinition[] = [
   {
     id: "foret-lisiere",
     name: "Lisière de la forêt",
-    description: "Des bandes de gobelins rôdent entre les arbres. Idéal pour débuter.",
+    description: "Des bandes d'orcs rôdent entre les arbres. Idéal pour débuter.",
     tier: 1,
     difficulty: 10,
     recommendedPower: 40,
@@ -18,7 +18,7 @@ export const ZONES: ZoneDefinition[] = [
     spawnIntervalSec: 3,
     baseWaveSize: 3,
     eliteEveryNWaves: 4,
-    boss: { refId: "gobelin-eclaireur", name: "Chef gobelin", hpMultiplier: 14, atkMultiplier: 1.6, spawnAtSec: 28 },
+    boss: { refId: "gobelin-eclaireur", name: "Chef orc", hpMultiplier: 14, atkMultiplier: 1.6, spawnAtSec: 28 },
     xpReward: 40,
     theme: { inner: "#20301f", outer: "#0b100c" },
     loot: {
@@ -33,7 +33,7 @@ export const ZONES: ZoneDefinition[] = [
   {
     id: "mines-abandonnees",
     name: "Mines abandonnées",
-    description: "Riches en minerai, gardées par des golems lents mais coriaces.",
+    description: "Riches en minerai, gardées par des golems d'ossements lents mais coriaces.",
     tier: 2,
     unlockRequires: "foret-lisiere",
     difficulty: 25,
@@ -60,7 +60,7 @@ export const ZONES: ZoneDefinition[] = [
   {
     id: "ruines-oubliees",
     name: "Ruines oubliées",
-    description: "Des araignées crachent leur venin depuis les décombres chargés d'essence.",
+    description: "Des chamans orcs y lancent la foudre depuis les décombres chargés d'essence.",
     tier: 3,
     unlockRequires: "mines-abandonnees",
     difficulty: 45,
@@ -72,7 +72,7 @@ export const ZONES: ZoneDefinition[] = [
     spawnIntervalSec: 2.5,
     baseWaveSize: 4,
     eliteEveryNWaves: 3,
-    boss: { refId: "araignee-venimeuse", name: "Reine des araignées", hpMultiplier: 9, atkMultiplier: 2, spawnAtSec: 36 },
+    boss: { refId: "araignee-venimeuse", name: "Grande chamane", hpMultiplier: 9, atkMultiplier: 2, spawnAtSec: 36 },
     xpReward: 110,
     theme: { inner: "#262032", outer: "#0c0a10" },
     loot: {

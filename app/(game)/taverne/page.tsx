@@ -135,7 +135,7 @@ function TavernView({
     <PageTransition>
       <div className="space-y-6">
         <PageHeader
-          title="Taverne du Chope-Fendue"
+          title="Taverne de la Chope-Fendue"
           subtitle="Un nouveau visiteur s'installe au comptoir toutes les 30 minutes."
           action={
             <Badge tone="gold" className="text-sm">

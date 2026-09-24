@@ -73,6 +73,11 @@ export const POST = withAuth(async (uid, request) => {
   const userRef = adminDb.collection("users").doc(uid);
 
   const response = await adminDb.runTransaction(async (tx) => {
+    // Re-check inside the transaction: two concurrent claims must not both pay out.
+    const freshExpedition = await tx.get(expeditionRef);
+    if ((freshExpedition.data() as Expedition | undefined)?.status !== "active") {
+      throw new GameError("Expédition déjà réclamée");
+    }
     const userSnap = await tx.get(userRef);
     const user = userSnap.data() as UserProfile;
 

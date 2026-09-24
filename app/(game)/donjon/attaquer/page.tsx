@@ -126,13 +126,15 @@ export default function AttaquerPage() {
   }
 
   async function startRaid() {
-    if (!selectedTarget || selectedHeroes.length === 0) return;
+    // A selected hero may have left since (expedition started from another tab).
+    const heroIds = selectedHeroes.filter((id) => idleHeroes.some((h) => h.id === id));
+    if (!selectedTarget || heroIds.length === 0) return;
     setError(null);
     setStarting(true);
     try {
       const res = await callApi<{ raidId: string }>("/api/dungeon/raid/start", {
         defenderId: selectedTarget,
-        heroIds: selectedHeroes,
+        heroIds,
       });
       router.push(`/donjon/attaquer/raid/${res.raidId}`, { transitionTypes: ["nav-forward"] });
     } catch (e) {

@@ -231,11 +231,11 @@ export const TAVERN_NPCS: TavernNpc[] = [
     portrait: "🪕",
     kind: "conteur",
     rarity: "commun",
-    greeting: "Assieds-toi, l'ami. Je connais une chanson sur un gobelin qui voulait être roi.",
+    greeting: "Assieds-toi, l'ami. Je connais une chanson sur un orc qui voulait être roi.",
     story: [
-      "Il y a longtemps, à la Lisière de la forêt, vivait un gobelin nommé Grik. Plus petit que les autres, plus malin aussi. Il avait remarqué une chose : les gobelins obéissent toujours à celui qui porte la plus grosse couronne.",
+      "Il y a longtemps, à la Lisière de la forêt, vivait un orc nommé Grik. Plus petit que les autres, plus malin aussi. Il avait remarqué une chose : les orcs obéissent toujours à celui qui porte la plus grosse couronne.",
       "Alors Grik vola une marmite à un aubergiste, la retourna sur sa tête, et se proclama Chef. Personne n'osa le contredire — la marmite était vraiment très grosse.",
-      "Il paraît que chaque Chef gobelin, depuis, porte une marmite. Et que chaque aubergiste de la région garde la sienne enchaînée au comptoir. Regarde derrière le bar : tu verras la chaîne.",
+      "Il paraît que chaque Chef orc, depuis, porte une marmite. Et que chaque aubergiste de la région garde la sienne enchaînée au comptoir. Regarde derrière le bar : tu verras la chaîne.",
     ],
   },
   {
@@ -331,8 +331,8 @@ export const TAVERN_NPCS: TavernNpc[] = [
     rarity: "rare",
     greeting: "Je ne vois pas ton visage, mais j'entends ton épée. Elle est fatiguée.",
     story: [
-      "Il existait six chemins pour devenir héros : la lame, l'arc, la prière, la nature, le serment et la montagne. Chaque chemin avait son gardien, et chaque gardien exigeait un prix.",
-      "Le Guerrier donnait sa peur. L'Archer, sa patience. Le Prêtre, son doute. Le Druide, sa maison. Le Paladin, sa liberté. Et le Colosse… le Colosse donnait sa douceur, et c'est pourquoi on ne le prend jamais dans ses bras.",
+      "Il existait huit chemins pour devenir héros : la lame, l'arc, la prière, la nature, le serment, la montagne, l'arcane et l'ombre. Chaque chemin avait son gardien, et chaque gardien exigeait un prix.",
+      "Le Guerrier donnait sa peur. L'Archer, sa patience. Le Prêtre, son doute. Le Druide, sa maison. Le Paladin, sa liberté. Le Mage, son sommeil. L'Assassin, son nom. Et le Colosse… le Colosse donnait sa douceur, et c'est pourquoi on ne le prend jamais dans ses bras.",
       "Aujourd'hui, on dit que les chemins se tirent au hasard, comme on tire une carte. Les gardiens trouvent ça très drôle.",
     ],
   },
@@ -360,7 +360,7 @@ export const TAVERN_NPCS: TavernNpc[] = [
     greeting: "Mon mari était aventurier. Asseyez-vous, je vais vous dire comment il est parti.",
     story: [
       "Il est parti en expédition un matin, avec trois compagnons et beaucoup trop de confiance. Il m'a promis d'être rentré avant la soupe.",
-      "Il n'est pas mort, rassurez-vous. Il a rencontré la Reine des araignées, et elle l'a trouvé charmant. Il vit dans les Ruines, maintenant. Il m'écrit parfois. Sur de la soie.",
+      "Il n'est pas mort, rassurez-vous. Il a rencontré la Grande chamane, et elle l'a trouvé charmant. Il vit dans les Ruines, maintenant. Il m'écrit parfois. Sur de l'écorce.",
       "Si vous le croisez, dites-lui que la soupe est froide.",
     ],
   },
@@ -524,7 +524,7 @@ export const TAVERN_NPCS: TavernNpc[] = [
   },
   {
     id: "forgeron-retraite",
-    name: "Old Hamm",
+    name: "Vieux Hamm",
     title: "Forgeron à la retraite",
     portrait: "🧓",
     kind: "bienfaiteur",
@@ -779,7 +779,7 @@ export const TAVERN_NPCS: TavernNpc[] = [
     greeting: "Tu peux m'offrir une chope ? Je te rembourse. Je suis riche, hein. Très riche. Juste… pas là, maintenant.",
     story: [
       "Laisse-moi t'expliquer, parce que les gens ne comprennent pas. Je suis l'un des aventuriers les plus riches du royaume. J'ai pillé plus de donjons que tu n'as mangé de soupes de Tante Berthe. L'or me coule entre les doigts.",
-      "Le problème, c'est justement qu'il coule. Parce qu'un vrai aventurier, ça ne se contente pas d'une épée. Il faut l'épée de feu pour les golems, l'épée de glace pour les araignées, et l'épée de secours au cas où l'épée de secours casse.",
+      "Le problème, c'est justement qu'il coule. Parce qu'un vrai aventurier, ça ne se contente pas d'une épée. Il faut l'épée de feu pour les golems, l'épée de glace pour les chamans, et l'épée de secours au cas où l'épée de secours casse.",
       "Et les armures ! Une pour le jour, une pour la nuit, une pour les raids, une pour les expéditions, une pour les mardis. Plus trois anneaux par doigt, au cas où. Tu savais qu'on n'a que dix doigts ? Moi j'ai acheté trente-deux anneaux avant de m'en rendre compte.",
       "Hier, j'ai rapporté mille pièces d'or des Ruines. Ce matin, un marchand m'a montré une cape avec un affixe de vitesse. Une cape ! Je n'avais pas de cape. Enfin, j'en avais six, mais pas avec CET affixe-là.",
       "Alors voilà. Je suis riche, c'est certain. Mon coffre déborde d'équipement. J'ai juste zéro pièce dans la bourse. C'est ce qu'on appelle un investissement. Tu me l'offres, cette chope ?",

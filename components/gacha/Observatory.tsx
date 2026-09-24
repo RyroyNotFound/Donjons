@@ -15,6 +15,7 @@ import { Chip } from "@/components/Chip";
 import { Button } from "@/components/Button";
 import { Panel } from "@/components/Panel";
 import { selectClass } from "@/components/Field";
+import { ROLE_LABEL } from "@/lib/ui/role";
 import type { UserProfile } from "@/types/game";
 
 type Tab = ObservatoryKind | "rankTokens";
@@ -40,7 +41,7 @@ function rowsFor(tab: ObservatoryKind, profile: UserProfile, talentClass: string
     return CLASSES.map((c) => ({
       id: c.id,
       name: c.name,
-      detail: `${c.role} — ${c.strengths}`,
+      detail: `${ROLE_LABEL[c.role]} — ${c.strengths}`,
       rank: profile.unlockedClasses.includes(c.id) ? 1 : 0,
     }));
   }
@@ -96,8 +97,8 @@ export function Observatory({ profile }: { profile: UserProfile }) {
       </div>
       <p className="mb-3 text-xs text-slate-400">
         Chaque tirage laisse de la poussière d&apos;étoile (plus pour les raretés hautes, et le triple pour un doublon déjà au
-        maximum). Échangez-la ici contre l&apos;élément de votre choix : les taux du gacha ne changent pas, mais la malchance ne
-        bloque jamais un build.
+        maximum). Échangez-la ici contre l&apos;élément de votre choix : les taux d&apos;invocation ne changent pas, mais la malchance ne
+        bloque jamais un ensemble.
       </p>
       <div className="mb-3 flex flex-wrap gap-2">
         {TABS.map((t) => (

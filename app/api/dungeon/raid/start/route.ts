@@ -36,7 +36,8 @@ interface Body {
 export const POST = withAuth(async (uid, request) => {
   const { defenderId, heroIds } = (await request.json()) as Body;
   if (defenderId === uid) throw new GameError("Vous ne pouvez pas attaquer votre propre donjon");
-  if (heroIds.length === 0) throw new GameError("Sélectionnez au moins un héros");
+  if (!Array.isArray(heroIds) || heroIds.length === 0) throw new GameError("Sélectionnez au moins un héros");
+  if (new Set(heroIds).size !== heroIds.length) throw new GameError("Un même héros ne peut pas être sélectionné deux fois");
 
   const activeSnap = await adminDb
     .collection("dungeonRaids")
@@ -159,12 +160,18 @@ export const POST = withAuth(async (uid, request) => {
     updatedAt: Date.now(),
   };
 
-  const batch = adminDb.batch();
-  batch.set(raidRef, raid);
-  for (const heroId of heroIds) {
-    batch.update(adminDb.collection("heroes").doc(heroId), { status: "dungeon-raid" });
-  }
-  await batch.commit();
+  // Re-check availability atomically: a hero sent on an expedition (or into another raid)
+  // since the first read must not end up in two places at once.
+  await adminDb.runTransaction(async (tx) => {
+    const heroRefs = heroIds.map((heroId) => adminDb.collection("heroes").doc(heroId));
+    const heroSnaps = await tx.getAll(...heroRefs);
+    for (const snap of heroSnaps) {
+      const hero = snap.data() as Hero | undefined;
+      if (!hero || hero.status !== "idle") throw new GameError(`${hero?.name ?? "Un héros"} n'est pas disponible`);
+    }
+    tx.set(raidRef, raid);
+    for (const ref of heroRefs) tx.update(ref, { status: "dungeon-raid" });
+  });
 
   return NextResponse.json({ raidId: raid.id, view: toRaidView(raid) });
 });

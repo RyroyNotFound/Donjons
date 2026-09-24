@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { withAuth, GameError } from "@/lib/api/handler";
 import { toRaidView } from "@/lib/game/engine/dungeonRaid";
-import { finalizeRaid } from "@/lib/game/dungeonRaidLifecycle";
+import { commitRaidStep } from "@/lib/game/dungeonRaidLifecycle";
 import type { DungeonRaid } from "@/types/game";
 
 interface Body {
@@ -20,8 +20,7 @@ export const POST = withAuth(async (uid, request) => {
   if (raid.status !== "in_progress") throw new GameError("Ce raid est déjà terminé");
 
   const nextRaid: DungeonRaid = { ...raid, status: "fled", updatedAt: Date.now() };
-  await raidRef.set(nextRaid);
-  await finalizeRaid(nextRaid);
+  await commitRaidStep(raidRef, raid, nextRaid);
 
   return NextResponse.json(toRaidView(nextRaid));
 });

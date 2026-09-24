@@ -23,7 +23,7 @@ const ENTRANCE: DungeonRoomCell = { ...ENTRANCE_CELL, type: "empty" };
 export const BOT_DUNGEONS: BotDungeonDefinition[] = [
   {
     id: "goblin-den",
-    name: "Repaire des gobelins",
+    name: "Repaire des orcs",
     tier: 1,
     defenseLevel: 3,
     hint: "Un premier raid sans surprise.",
@@ -52,7 +52,7 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
   },
   {
     id: "stone-golem-vault",
-    name: "Caveau du golem de pierre",
+    name: "Caveau du golem d'ossements",
     tier: 3,
     defenseLevel: 25,
     hint: "Morts-vivants et givre : attaques sacrées ou de feu, résistance à la glace.",
@@ -93,7 +93,7 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
     name: "Sanctuaire piégé",
     tier: 5,
     defenseLevel: 55,
-    hint: "Presque que des pièges, de tous les éléments : Désamorçage et résistance aux pièges indispensables.",
+    hint: "Presque uniquement des pièges, de tous les éléments : Désamorçage et résistance aux pièges font la différence.",
     rooms: [
       ENTRANCE,
       { row: 2, col: 1, type: "trap", trapIds: ["fosse-a-pieux", "gaz-toxique", "arc-foudroyant"] },

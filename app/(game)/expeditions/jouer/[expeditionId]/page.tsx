@@ -47,6 +47,8 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
   const [outcome, setOutcome] = useState<ExpeditionClaimResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [replaying, setReplaying] = useState(false);
+  const [lastResult, setLastResult] = useState<ArenaRunResult | null>(null);
+  const [abandoning, setAbandoning] = useState(false);
 
   const expedition = expeditions.find((e) => e.id === expeditionId);
   const heroesLoaded = heroes.length > 0;
@@ -87,6 +89,7 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
   const zone = zoneAtDifficulty(getZone(expedition.zoneId), difficulty.id);
 
   async function handleFinish(result: ArenaRunResult) {
+    setLastResult(result);
     setPhase("submitting");
     setError(null);
     try {
@@ -95,6 +98,19 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
       setError((e as Error).message);
     }
     setPhase("result");
+  }
+
+  // A failed claim leaves the expedition active and its heroes locked: offer to resend or give up.
+  async function abandon() {
+    setAbandoning(true);
+    setError(null);
+    try {
+      await callApi("/api/expeditions/abandon", { expeditionId });
+      router.replace("/expeditions");
+    } catch (e) {
+      setError((e as Error).message);
+      setAbandoning(false);
+    }
   }
 
   async function replay() {
@@ -200,9 +216,22 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
             )}
             {error && <p className="text-sm text-red-400">{error}</p>}
             <div className="mt-5 flex flex-wrap gap-3">
-              <Button onClick={replay} disabled={replaying}>
-                {replaying ? "Départ..." : "Rejouer"}
-              </Button>
+              {outcome ? (
+                <Button onClick={replay} disabled={replaying}>
+                  {replaying ? "Départ..." : "Rejouer"}
+                </Button>
+              ) : (
+                <>
+                  {lastResult && (
+                    <Button onClick={() => handleFinish(lastResult)} disabled={abandoning}>
+                      Réessayer l&apos;envoi
+                    </Button>
+                  )}
+                  <Button variant="danger" onClick={abandon} disabled={abandoning}>
+                    {abandoning ? "Abandon..." : "Abandonner (sans butin)"}
+                  </Button>
+                </>
+              )}
               <Link href="/expeditions" transitionTypes={["nav-back"]} className={buttonClasses("secondary")}>
                 Changer d&apos;équipe ou de zone
               </Link>

@@ -78,7 +78,7 @@ export const MASTERIES: MasteryDefinition[] = [
   {
     id: "mastery-sceau-protecteur",
     name: "Sceau protecteur",
-    description: "Une ward qui renforce corps et esprit.",
+    description: "Un sceau qui renforce corps et esprit.",
     statBonus: { defMag: 3, hp: 6 },
   },
   {
@@ -185,7 +185,7 @@ export const MASTERIES: MasteryDefinition[] = [
     statBonus: { resFeu: 18 },
   },
   {
-    id: "mastery-sang-froid",
+    id: "mastery-sang-glace",
     name: "Sang glacé",
     description: "Le froid glisse sans mordre.",
     statBonus: { resGlace: 18 },

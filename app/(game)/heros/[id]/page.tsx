@@ -32,6 +32,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { PageTransition } from "@/components/PageTransition";
 import { SpriteAnimation } from "@/components/SpriteAnimation";
 import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
+import { ROLE_LABEL } from "@/lib/ui/role";
 import type { Item, ItemSlot } from "@/types/game";
 
 const SLOTS: ItemSlot[] = ["weapon", "armor", "trinket"];
@@ -112,7 +113,7 @@ export default function HeroDetailPage() {
             subtitle={
               classDef ? (
                 <>
-                  {classDef.name} · {classDef.role} · Niveau {hero.level}/{levelCapForStar(hero.starRank ?? 1)}
+                  {classDef.name} · {ROLE_LABEL[classDef.role]} · Niveau {hero.level}/{levelCapForStar(hero.starRank ?? 1)}
                   <span className="ml-2 text-amber-400">
                     {"★".repeat(hero.starRank ?? 1)}
                     {"☆".repeat(MAX_STAR_RANK - (hero.starRank ?? 1))}
@@ -137,7 +138,7 @@ export default function HeroDetailPage() {
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             <select
-              disabled={busy}
+              disabled={busy || hero.status !== "idle"}
               value={hero.classId ?? ""}
               onChange={(e) => e.target.value && assignClass(e.target.value)}
               className={`${selectClass} max-w-xs`}
@@ -147,7 +148,7 @@ export default function HeroDetailPage() {
               </option>
               {CLASSES.filter((c) => profile.unlockedClasses.includes(c.id)).map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.role})
+                  {c.name} ({ROLE_LABEL[c.role]})
                 </option>
               ))}
             </select>

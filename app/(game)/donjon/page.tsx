@@ -24,7 +24,7 @@ import { MONSTER_SPRITE } from "@/lib/ui/monsterSprites";
 import { DungeonGridEditor } from "@/components/dungeon/DungeonGridEditor";
 import { RoomInspector } from "@/components/dungeon/RoomInspector";
 import { GarrisonPicker } from "@/components/dungeon/GarrisonPicker";
-import type { Dungeon, DungeonRoomCell, DungeonUpgrades } from "@/types/game";
+import type { Dungeon, DungeonRoomCell } from "@/types/game";
 
 function entranceRoom(): DungeonRoomCell[] {
   return [{ ...ENTRANCE_CELL, type: "empty" }];

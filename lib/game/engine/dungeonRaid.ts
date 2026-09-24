@@ -132,11 +132,12 @@ export function buildDefenderSnapshot(
       );
       rooms[key] = { visited: isEntrance, cleared: isEntrance, trapChargesRemaining: charges };
     } else if (cell.type === "monster") {
-      const monsterOccupants: DungeonOccupant[] = (cell.monsterRefIds ?? []).map((refId) => {
+      const monsterOccupants: DungeonOccupant[] = (cell.monsterRefIds ?? []).map((refId, index) => {
         const definition = getMonster(refId);
         const multiplier = levelMultiplier * (definition.isBoss ? 1 : beastMultiplier);
         return {
-          id: `${key}:${refId}`,
+          // The index keeps two copies of the same monster apart (cleave splash, stun, shield).
+          id: `${key}:${index}:${refId}`,
           name: definition.name,
           maxHp: Math.round(definition.stats.hp * multiplier),
           hp: Math.round(definition.stats.hp * multiplier),

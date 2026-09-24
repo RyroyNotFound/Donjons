@@ -15,6 +15,7 @@ import { buttonClasses } from "@/components/Button";
 import { Panel } from "@/components/Panel";
 import { Spinner } from "@/components/Spinner";
 import { PageTransition } from "@/components/PageTransition";
+import { ROLE_LABEL } from "@/lib/ui/role";
 
 function ItemRow({
   name,
@@ -89,7 +90,7 @@ export default function InventairePage() {
         {ownedClasses.length === 0 && <EmptyHint />}
         <div className="grid gap-2 sm:grid-cols-2">
           {ownedClasses.map((c) => (
-            <ItemRow key={c.id} name={`${c.name} (${c.role})`} description={c.description} />
+            <ItemRow key={c.id} name={`${c.name} (${ROLE_LABEL[c.role]})`} description={c.description} />
           ))}
         </div>
       </Card>

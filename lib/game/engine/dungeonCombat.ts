@@ -214,9 +214,20 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
     }
   }
 
-  if (healer && healer.hp > 0) {
-    const lowest = [...alive].sort((a, b) => a.hp - b.hp)[0];
-    if (lowest && lowest.hp < lowest.maxHp) {
+  if (healer && healer.hp > 0 && effect.stunned.has(healer.id)) {
+    effect.stunned.delete(healer.id);
+    log.push({
+      roomKey,
+      kind: "info",
+      message: `${healer.name} est étourdi et ne peut agir.`,
+      actorId: healer.id,
+    });
+  } else if (healer && healer.hp > 0) {
+    // Most wounded ally by HP ratio — the lowest absolute HP may well be a full-health squishy.
+    const lowest = alive
+      .filter((u) => u.hp > 0 && u.hp < u.maxHp)
+      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+    if (lowest) {
       const healMultiplier = magnitude("heal", !!healer.raidEffectBonus);
       const healAmount = Math.round((6 + Math.max(healer.atkPhys, healer.atkMag) * 1.2) * healMultiplier);
       lowest.hp = Math.min(lowest.maxHp, lowest.hp + healAmount);
@@ -271,6 +282,13 @@ export function resolveRoomBattle(
   }
 
   const cleared = room.every((d) => d.hp <= 0) && attackers.some((a) => a.hp > 0);
+  if (!cleared && attackers.some((a) => a.hp > 0)) {
+    log.push({
+      roomKey,
+      kind: "info",
+      message: "Le combat s'éternise : épuisés, vos héros finissent submergés.",
+    });
+  }
   for (const a of attackers) a.weakened = 0;
   return {
     outcome: cleared ? "cleared" : "wiped",

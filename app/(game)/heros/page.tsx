@@ -15,7 +15,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone } from "@/components/Badge";
 import { Button, buttonClasses } from "@/components/Button";
-import { ROLE_TEXT_COLOR } from "@/lib/ui/role";
+import { ROLE_TEXT_COLOR, ROLE_LABEL } from "@/lib/ui/role";
 import { PageTransition } from "@/components/PageTransition";
 import { SpriteAnimation } from "@/components/SpriteAnimation";
 import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
@@ -124,7 +124,7 @@ export default function HerosPage() {
                   <p
                     className={`mt-1 text-sm font-medium ${classDef ? ROLE_TEXT_COLOR[classDef.role] : "text-slate-500"}`}
                   >
-                    {classDef ? `${classDef.name} · ${classDef.role}` : "Sans classe — à personnaliser"}
+                    {classDef ? `${classDef.name} · ${ROLE_LABEL[classDef.role]}` : "Sans classe — à personnaliser"}
                   </p>
                   <p className="mt-1 text-sm text-amber-400">
                     {"★".repeat(hero.starRank ?? 1)}

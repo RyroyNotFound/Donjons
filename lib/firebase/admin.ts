@@ -48,6 +48,17 @@ export const adminAuth: Auth = lazyProxy(() => {
 });
 
 export const adminDb: Firestore = lazyProxy(() => {
-  if (!cachedDb) cachedDb = getFirestore(getAdminApp());
+  if (!cachedDb) {
+    cachedDb = getFirestore(getAdminApp());
+    // Game objects carry many optional fields (element, raidEffectTag, fellIn...) that are
+    // often undefined; without this flag every such write throws. (firebase-admin's
+    // initializeFirestore() silently drops this option, hence settings().) settings() throws
+    // if the instance was already configured, which happens after a dev hot reload.
+    try {
+      cachedDb.settings({ ignoreUndefinedProperties: true });
+    } catch {
+      // Already configured with the same settings.
+    }
+  }
   return cachedDb;
 });

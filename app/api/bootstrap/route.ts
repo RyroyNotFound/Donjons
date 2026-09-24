@@ -5,7 +5,7 @@ import { newHeroData } from "@/lib/game/heroFactory";
 import { STARTING_CRYSTALS, SPELL_SLOTS } from "@/lib/game/economy";
 import { ENTRANCE_CELL } from "@/lib/game/content/dungeon";
 import { DEFAULT_UPGRADE_LEVELS } from "@/lib/game/content/dungeonUpgrades";
-import type { Dungeon, DungeonUpgrades, Hero, UserProfile } from "@/types/game";
+import type { Dungeon, DungeonRaid, DungeonUpgrades, Expedition, Hero, Item, UserProfile } from "@/types/game";
 
 const STARTING_GOLD = 100;
 
@@ -150,6 +150,52 @@ export const POST = withAuth(async (uid) => {
   }
   if (trimmed) {
     await trimBatch.commit();
+    heroesSnap = await adminDb.collection("heroes").where("ownerId", "==", uid).get();
+  }
+
+  // Self-heal dangling references left by the legacy reset above or by a request that
+  // failed halfway: items worn by deleted heroes, active expeditions whose heroes are
+  // gone, and heroes flagged busy with no raid/expedition actually running.
+  const [itemsSnap, activeExpeditionsSnap, activeRaidsSnap] = await Promise.all([
+    adminDb.collection("items").where("ownerId", "==", uid).get(),
+    adminDb.collection("expeditions").where("ownerId", "==", uid).where("status", "==", "active").get(),
+    adminDb.collection("dungeonRaids").where("attackerId", "==", uid).where("status", "==", "in_progress").get(),
+  ]);
+  const heroIds = new Set(heroesSnap.docs.map((d) => d.id));
+  const healBatch = adminDb.batch();
+  let healed = false;
+  for (const doc of itemsSnap.docs) {
+    const wearer = (doc.data() as Item).equippedByHeroId;
+    if (wearer && !heroIds.has(wearer)) {
+      healBatch.update(doc.ref, { equippedByHeroId: null });
+      healed = true;
+    }
+  }
+  const heroesOnExpedition = new Set<string>();
+  for (const doc of activeExpeditionsSnap.docs) {
+    const expedition = doc.data() as Expedition;
+    if (expedition.heroIds.some((id) => !heroIds.has(id))) {
+      healBatch.update(doc.ref, { status: "claimed" });
+      healed = true;
+    } else {
+      for (const id of expedition.heroIds) heroesOnExpedition.add(id);
+    }
+  }
+  const heroesInRaid = new Set(
+    activeRaidsSnap.docs.flatMap((d) => (d.data() as DungeonRaid).heroes.map((h) => h.id)),
+  );
+  for (const doc of heroesSnap.docs) {
+    const { status } = doc.data() as Hero;
+    const stuck =
+      (status === "expedition" && !heroesOnExpedition.has(doc.id)) ||
+      (status === "dungeon-raid" && !heroesInRaid.has(doc.id));
+    if (stuck) {
+      healBatch.update(doc.ref, { status: "idle" });
+      healed = true;
+    }
+  }
+  if (healed) {
+    await healBatch.commit();
     heroesSnap = await adminDb.collection("heroes").where("ownerId", "==", uid).get();
   }
 

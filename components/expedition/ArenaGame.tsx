@@ -308,11 +308,19 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
       const dir = KEY_MAP[e.key.toLowerCase()];
       if (dir) pressedRef.current.delete(dir);
     }
+    // Alt-Tab or a tab switch swallows the keyup: drop every held direction.
+    function releaseAll() {
+      pressedRef.current.clear();
+    }
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", releaseAll);
+    document.addEventListener("visibilitychange", releaseAll);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", releaseAll);
+      document.removeEventListener("visibilitychange", releaseAll);
     };
   }, [started, pick]);
 

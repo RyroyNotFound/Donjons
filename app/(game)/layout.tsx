@@ -111,7 +111,7 @@ function BurgerIcon({ close = false }: { close?: boolean }) {
 
 export default function GameLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const { profile } = useGameData();
+  const { profile, error: loadError, retry } = useGameData();
   const router = useRouter();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -139,11 +139,33 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
     return <Spinner label="Chargement..." />;
   }
 
-  if (profile && !profile.onboardedAt) {
-    return <Onboarding profile={profile} />;
+  const logout = () => signOut(auth);
+
+  if (loadError) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
+        <p className="max-w-md text-slate-300">{loadError}</p>
+        <div className="flex gap-3">
+          <button type="button" onClick={retry} className={buttonClasses("primary")}>
+            Réessayer
+          </button>
+          <button type="button" onClick={logout} className={buttonClasses("ghost")}>
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    );
   }
 
-  const logout = () => signOut(auth);
+  // A brand-new account has no profile until /api/bootstrap creates it: wait instead of
+  // flashing an empty game before the onboarding kicks in.
+  if (!profile) {
+    return <Spinner label="Préparation de votre donjon..." />;
+  }
+
+  if (!profile.onboardedAt) {
+    return <Onboarding profile={profile} />;
+  }
 
   return (
     <div className="flex flex-1 flex-col">

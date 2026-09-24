@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { withAuth, GameError } from "@/lib/api/handler";
 import { createRng } from "@/lib/game/engine/rng";
 import { applyMove, toRaidView } from "@/lib/game/engine/dungeonRaid";
-import { finalizeRaid } from "@/lib/game/dungeonRaidLifecycle";
+import { commitRaidStep } from "@/lib/game/dungeonRaidLifecycle";
 import type { DungeonRaid } from "@/types/game";
 
 interface Body {
@@ -24,8 +24,7 @@ export const POST = withAuth(async (uid, request) => {
   const rng = createRng(`${raid.seed}:${raid.log.length}:${row}:${col}`);
   const { raid: nextRaid, newLog } = applyMove(raid, { row, col }, rng);
 
-  await raidRef.set(nextRaid);
-  const crystalsEarned = nextRaid.status !== "in_progress" ? await finalizeRaid(nextRaid) : undefined;
+  const crystalsEarned = await commitRaidStep(raidRef, raid, nextRaid);
 
   return NextResponse.json({ ...toRaidView(nextRaid, newLog), crystalsEarned });
 });

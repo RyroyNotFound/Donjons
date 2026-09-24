@@ -17,3 +17,10 @@ export const ROLE_GLOW: Record<Role, string> = {
   HEAL: "shadow-[0_0_8px_rgba(52,211,153,0.5)]",
   TANK: "shadow-[0_0_8px_rgba(56,189,248,0.5)]",
 };
+
+/** Player-facing role names (the Role codes stay internal). */
+export const ROLE_LABEL: Record<Role, string> = {
+  DPS: "DPS",
+  HEAL: "Soigneur",
+  TANK: "Tank",
+};

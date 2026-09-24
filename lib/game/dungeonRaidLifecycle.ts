@@ -1,6 +1,8 @@
 import "server-only";
 
+import type { DocumentReference } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
+import { GameError } from "@/lib/api/handler";
 import { getBotDungeon, isBotDefenderId } from "@/lib/game/content/botDungeons";
 import { finalReward } from "@/lib/game/engine/dungeonRaid";
 import type { BattleReward, DefenseLogEntry, DungeonRaid, RaidStats, ResourceKind, UserProfile } from "@/types/game";
@@ -28,19 +30,43 @@ function rewardTotal(reward: BattleReward): number {
   return reward.gold + Object.values(reward.resources).reduce((sum, n) => sum + (n ?? 0), 0);
 }
 
-/** Pays out a just-finished raid's reward, debits a real defender's stash, bumps both sides'
- *  leaderboard counters, pays raid crystals, and frees the attacker's heroes. Returns the crystals
- *  the attacker earned. */
-export async function finalizeRaid(raid: DungeonRaid): Promise<number> {
-  const reward = finalReward(raid);
+/** Saves one raid step atomically. `previous` is the raid as the route read it and `next` the
+ *  result of applying the player's action; the write is refused if the stored raid moved on in
+ *  between (double click, two tabs), so a step — and above all a payout — can never apply twice.
+ *  When `next` is finished, the same transaction pays out the reward, debits a real defender's
+ *  stash, bumps both sides' leaderboard counters, pays raid crystals and frees the attacker's
+ *  heroes. Returns the crystals the attacker earned, or undefined while the raid goes on. */
+export async function commitRaidStep(
+  raidRef: DocumentReference,
+  previous: DungeonRaid,
+  next: DungeonRaid,
+): Promise<number | undefined> {
+  const finished = next.status !== "in_progress";
+  const reward = finalReward(next);
+  const raid = next;
   const vsBot = isBotDefenderId(raid.defenderId);
   const attackerRef = adminDb.collection("users").doc(raid.attackerId);
   const defenderRef = vsBot ? null : adminDb.collection("users").doc(raid.defenderId);
 
   return adminDb.runTransaction(async (tx) => {
     // Firestore transactions need every read before the first write.
+    const storedSnap = await tx.get(raidRef);
+    const stored = storedSnap.data() as DungeonRaid | undefined;
+    if (
+      !stored ||
+      stored.status !== "in_progress" ||
+      stored.updatedAt !== previous.updatedAt ||
+      stored.log.length !== previous.log.length
+    ) {
+      throw new GameError("Ce raid a déjà avancé : recharge la page");
+    }
+    if (!finished) {
+      tx.set(raidRef, next);
+      return undefined;
+    }
     const attackerSnap = await tx.get(attackerRef);
     const defenderSnap = defenderRef ? await tx.get(defenderRef) : null;
+    tx.set(raidRef, next);
 
     const attacker = attackerSnap.data() as UserProfile;
     const nextAttackerResources = { ...attacker.resources };
@@ -93,7 +119,7 @@ export async function finalizeRaid(raid: DungeonRaid): Promise<number> {
         treasureReached: raid.treasureRoomsReached.length,
         treasureTotal: raid.defenderSnapshot.rooms.filter((r) => r.type === "treasure").length,
         goldLost: raid.status === "wiped" ? 0 : reward.gold,
-        fellIn: raid.status === "wiped" ? `${raid.currentRoom.row},${raid.currentRoom.col}` : undefined,
+        ...(raid.status === "wiped" ? { fellIn: `${raid.currentRoom.row},${raid.currentRoom.col}` } : {}),
         crystalsGained: raid.status === "wiped" ? DEFENSE_WIN_CRYSTALS : 0,
       };
       const defenseLog = [entry, ...(defender.defenseLog ?? [])].slice(0, DEFENSE_LOG_SIZE);
