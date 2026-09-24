@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Affiche Donjons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;700;900&family=Pixelify+Sans:wght@500;700&display=block" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  :root {
+    --ink: #0a0714;
+    --violet: #2a1446;
+    --gold: #ffd36b;
+    --gold-deep: #e39a2d;
+    --ice: #9fe8ff;
+    --text: #efe6ff;
+    --muted: #b7a6d6;
+    --shadow: #6b2bd1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); }
+  body { width: var(--W); height: var(--H); overflow: hidden; color: var(--text); font-family: "Cinzel", serif; }
+  .poster {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: calc(var(--u) * 7) calc(var(--u) * 6);
+    background:
+      radial-gradient(ellipse 70% 45% at 50% var(--star-y), var(--halo) 0%, transparent 70%),
+      radial-gradient(ellipse 120% 60% at 50% 110%, #1b0f33 0%, transparent 60%),
+      linear-gradient(180deg, #07050f 0%, var(--violet) 55%, #0c0818 100%);
+  }
+  canvas#sky { position: absolute; inset: 0; z-index: 0; }
+  .frame {
+    position: absolute; inset: calc(var(--u) * 2.4); z-index: 1; pointer-events: none;
+    border: 2px solid color-mix(in srgb, var(--gold) 55%, transparent);
+    box-shadow: inset 0 0 0 6px transparent, inset 0 0 0 7px color-mix(in srgb, var(--gold) 25%, transparent);
+  }
+  .frame::before, .frame::after {
+    content: "✦"; position: absolute; color: var(--gold); font-size: calc(var(--u) * 3.2);
+    left: 50%; transform: translate(-50%, -55%); top: 0; background: #07050f; padding: 0 calc(var(--u) * 1.2); line-height: 1;
+  }
+  .frame::after { top: auto; bottom: 0; transform: translate(-50%, 55%); background: #0c0818; }
+  .z { position: relative; z-index: 2; text-align: center; }
+
+  .kicker {
+    font-family: "Pixelify Sans", monospace; font-weight: 700; letter-spacing: .28em; text-transform: uppercase;
+    font-size: calc(var(--u) * 2.6); color: var(--ice);
+    text-shadow: 0 0 calc(var(--u) * 1.5) color-mix(in srgb, var(--ice) 60%, transparent);
+  }
+  .title {
+    font-family: "Cinzel Decorative", serif; font-weight: 900; line-height: .9;
+    font-size: calc(var(--u) * 15); letter-spacing: .02em;
+    background: linear-gradient(180deg, #fff7d6 0%, var(--gold) 45%, var(--gold-deep) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 calc(var(--u) * .5) 0 #3b1a05) drop-shadow(0 0 calc(var(--u) * 3) color-mix(in srgb, var(--gold) 45%, transparent));
+  }
+  .subtitle {
+    margin-top: calc(var(--u) * 1.4); font-weight: 700; letter-spacing: .35em; text-transform: uppercase;
+    font-size: calc(var(--u) * 2.5); color: var(--muted);
+  }
+  .subtitle b { color: var(--gold); font-weight: 700; }
+
+  .star-wrap { position: relative; z-index: 2; width: calc(var(--u) * var(--star-size)); aspect-ratio: 1; }
+  .star-wrap svg { width: 100%; height: 100%; overflow: visible; }
+
+  .big {
+    font-family: "Cinzel", serif; font-weight: 900; line-height: 1; text-transform: uppercase;
+    font-size: calc(var(--u) * 8.4); letter-spacing: .04em; color: #fff;
+    text-shadow: 0 0 calc(var(--u) * 2.5) var(--glow), 0 calc(var(--u) * .4) 0 #1a0930;
+  }
+  .big small { display: block; font-size: .38em; letter-spacing: .3em; color: var(--muted); font-weight: 700; margin-bottom: calc(var(--u) * 1.2); text-shadow: none; }
+  .timer {
+    font-family: "Pixelify Sans", monospace; font-weight: 700; line-height: 1;
+    font-size: calc(var(--u) * 13); color: var(--ice); letter-spacing: .05em;
+    text-shadow: 0 0 calc(var(--u) * 3) color-mix(in srgb, var(--ice) 70%, transparent), 0 calc(var(--u) * .6) 0 #10304a;
+  }
+  .lore {
+    max-width: calc(var(--u) * 72); margin: calc(var(--u) * 2.2) auto 0;
+    font-family: "Cinzel", serif; font-weight: 500; font-size: calc(var(--u) * 2.35); line-height: 1.5; color: var(--muted);
+  }
+  .lore em { color: var(--text); font-style: normal; font-weight: 700; }
+
+  .battle { display: flex; align-items: flex-end; justify-content: center; gap: calc(var(--u) * 1); }
+  .battle .side { display: flex; align-items: flex-end; gap: calc(var(--u) * .4); }
+  .battle .vs {
+    font-family: "Pixelify Sans", monospace; font-weight: 700; color: var(--gold);
+    font-size: calc(var(--u) * 3.4); margin: 0 calc(var(--u) * 2.2) calc(var(--u) * 3.5);
+    text-shadow: 0 0 calc(var(--u) * 1.5) var(--gold-deep);
+  }
+  .sprite {
+    width: calc(var(--px) * 32); height: calc(var(--px) * 32);
+    background-size: 400% 100%; background-position: 0 0; background-repeat: no-repeat;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 calc(var(--px) * 1.2) 0 rgba(0,0,0,.55));
+  }
+  .sprite.flip { transform: scaleX(-1); }
+  .sprite.boss { --px: calc(var(--spx) * 1.55); filter: drop-shadow(0 0 calc(var(--u) * 2) #8a3cff) drop-shadow(0 calc(var(--px) * 1.2) 0 rgba(0,0,0,.55)); }
+  .ground { height: 3px; width: 100%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 60%, transparent), transparent); margin-top: calc(var(--u) * .4); }
+
+  .link-box {
+    display: inline-flex; align-items: center; gap: calc(var(--u) * 3);
+    padding: calc(var(--u) * 2) calc(var(--u) * 3.2);
+    background: linear-gradient(180deg, rgba(255, 211, 107, .16), rgba(255, 211, 107, .05));
+    border: 3px solid var(--gold); border-radius: calc(var(--u) * 1.4);
+    box-shadow: 0 0 calc(var(--u) * 4) color-mix(in srgb, var(--gold) 35%, transparent), inset 0 0 calc(var(--u) * 2) rgba(255, 211, 107, .15);
+  }
+  .link-box .label { font-family: "Pixelify Sans", monospace; font-weight: 700; font-size: calc(var(--u) * 2.1); letter-spacing: .25em; color: var(--muted); text-transform: uppercase; text-align: left; }
+  .link-box .url { font-family: "Cinzel", serif; font-weight: 900; font-size: calc(var(--u) * 5.2); color: #fff; letter-spacing: .01em; line-height: 1.1; text-shadow: 0 0 calc(var(--u) * 1.6) var(--gold-deep); text-align: left; }
+  .qr { background: #fff7e0; padding: calc(var(--u) * .9); border-radius: calc(var(--u) * .8); line-height: 0; }
+  .qr svg { width: calc(var(--u) * var(--qr)); height: calc(var(--u) * var(--qr)); display: block; }
+
+  .features { display: flex; gap: calc(var(--u) * 1.6); justify-content: center; flex-wrap: wrap; margin-top: calc(var(--u) * 2.6); }
+  .features span {
+    display: inline-flex; align-items: center; gap: calc(var(--u) * .9);
+    font-family: "Pixelify Sans", monospace; font-weight: 500; font-size: calc(var(--u) * 2.2); color: var(--text);
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.6); border: 2px solid rgba(183, 166, 214, .35); border-radius: 999px; background: rgba(10, 7, 20, .55);
+  }
+  .features img { width: calc(var(--u) * 2.6); height: calc(var(--u) * 2.6); image-rendering: pixelated; }
+  .foot { font-family: "Pixelify Sans", monospace; font-size: calc(var(--u) * 2.2); color: var(--muted); letter-spacing: .12em; }
+  .foot b { color: var(--gold); }
+
+  /* formats */
+  body.square { --W: 1080px; --H: 1080px; --u: 10.8px; --spx: 2.4px; --star-size: 17; --star-y: 36%; --qr: 11; }
+  body.square .poster { padding: calc(var(--u) * 5.5) calc(var(--u) * 6) calc(var(--u) * 4.5); }
+  body.square .title { font-size: calc(var(--u) * 11); }
+  body.square .subtitle { font-size: calc(var(--u) * 2.1); margin-top: calc(var(--u) * .8); }
+  body.square .big { font-size: calc(var(--u) * 6.2); }
+  body.square .timer { font-size: calc(var(--u) * 10); }
+  body.square .lore { font-size: calc(var(--u) * 2.1); margin-top: calc(var(--u) * 1.4); }
+  body.square .link-box .url { font-size: calc(var(--u) * 4.4); }
+  body.square .features span { font-size: calc(var(--u) * 1.9); }
+  body.story  { --W: 1080px; --H: 1920px; --u: 12px; --spx: 3.4px; --star-size: 40; --star-y: 40%; --qr: 15; }
+  body.story.launch { --star-size: 28; --qr: 13; }
+  body.story.launch .link-box { padding: calc(var(--u) * 2.4) calc(var(--u) * 4); gap: calc(var(--u) * 1.6); }
+  .lore em { white-space: nowrap; }
+  body.story .poster { padding: calc(var(--u) * 10) calc(var(--u) * 5); }
+  body.story .title { font-size: calc(var(--u) * 13.5); }
+  body.story .big { font-size: calc(var(--u) * 7.6); }
+  body.story .timer { font-size: calc(var(--u) * 16); }
+  body.story .lore { font-size: calc(var(--u) * 2.9); max-width: calc(var(--u) * 70); }
+  body.story .link-box { flex-direction: column; gap: calc(var(--u) * 2); padding: calc(var(--u) * 3) calc(var(--u) * 4); }
+  body.story .link-box .label, body.story .link-box .url { text-align: center; }
+  body.story .features { max-width: calc(var(--u) * 70); }
+  body.story .features span { font-size: calc(var(--u) * 2.6); }
+  body { --px: var(--spx); }
+
+  /* variants */
+  body.teaser { --halo: rgba(120, 60, 220, .55); --glow: #8a3cff; }
+  body.launch { --halo: rgba(255, 190, 80, .55); --glow: #ff9d2e; }
+
+  /* square layouts are tight: hide the long lore line on the launch square */
+  body.square.launch .lore { display: none; }
+  body.square .features { margin-top: calc(var(--u) * 1.6); }
+</style>
+</head>
+<body>
+<div class="poster">
+  <canvas id="sky"></canvas>
+  <div class="frame"></div>
+
+  <header class="z">
+    <div class="kicker" id="kicker"></div>
+    <h1 class="title">Donjons</h1>
+    <div class="subtitle">Chapitre I · <b>L'Astre brisé</b></div>
+  </header>
+
+  <div class="star-wrap"><svg id="star" viewBox="-160 -160 320 320"></svg></div>
+
+  <section class="z" id="main"></section>
+
+  <section class="z" style="width:100%">
+    <div class="battle">
+      <div class="side">
+        <div class="sprite" style="background-image:url(file:///C:/ProjetGIT/DG/public/sprites/heroes/tank.png)"></div>
+        <div class="sprite" style="background-image:url(file:///C:/ProjetGIT/DG/public/sprites/heroes/dps.png)"></div>
+        <div class="sprite" style="background-image:url(file:///C:/ProjetGIT/DG/public/sprites/heroes/heal.png)"></div>
+      </div>
+      <div class="vs">VS</div>
+      <div class="side">
+        <div class="sprite flip" style="background-image:url(file:///C:/ProjetGIT/DG/public/sprites/monsters/gobelin-eclaireur.png)"></div>
+        <div class="sprite flip" style="background-image:url(file:///C:/ProjetGIT/DG/public/sprites/monsters/araignee-venimeuse.png)"></div>
+        <div class="sprite flip boss" style="background-image:url(file:///C:/ProjetGIT/DG/public/sprites/monsters/seigneur-des-ombres.png)"></div>
+        <div class="sprite flip" style="background-image:url(file:///C:/ProjetGIT/DG/public/sprites/monsters/golem-de-pierre.png)"></div>
+      </div>
+    </div>
+    <div class="ground"></div>
+  </section>
+</div>
+
+<script>
+  const URL_TEXT = "donjons.ryroy.fr";
+  const URL_FULL = "https://donjons.ryroy.fr";
+  const ICON = (n) => `file:///C:/ProjetGIT/DG/public/sprites/icons/${n}.png`;
+
+  const params = new URLSearchParams(location.search);
+  const variant = params.get("v") === "launch" ? "launch" : "teaser";
+  const format = params.get("f") === "story" ? "story" : "square";
+  document.body.classList.add(variant, format);
+
+  const kicker = document.getElementById("kicker");
+  const main = document.getElementById("main");
+
+  if (variant === "teaser") {
+    kicker.textContent = "⚠ Les portes s'ouvrent bientôt ⚠";
+    main.innerHTML = `
+      <div class="big"><small>Ouverture dans</small></div>
+      <div class="timer">30:00</div>
+      <div class="big" style="font-size:calc(var(--u)*4.2);letter-spacing:.3em;margin-top:calc(var(--u)*1)">minutes</div>
+      <p class="lore">Le Seigneur des ombres a brisé le <em>Cœur-d'Étoile</em>.<br>Ses éclats vont se réveiller. <em>Gardiens, préparez vos donjons.</em></p>`;
+  } else {
+    kicker.textContent = "★ Disponible maintenant ★";
+    main.innerHTML = `
+      <div class="big"><small>Gardiens, c'est l'heure</small>Le jeu est sorti&nbsp;!</div>
+      <p class="lore">Rallume le <em>Cœur-d'Étoile</em> avant les autres Gardiens.</p>
+      <div style="margin-top:calc(var(--u)*2.6)">
+        <div class="link-box">
+          <div>
+            <div class="label">Joue maintenant sur</div>
+            <div class="url">${URL_TEXT}</div>
+          </div>
+          <div class="qr" id="qr"></div>
+        </div>
+      </div>
+      <div class="features">
+        <span><img src="${ICON("crystal")}">Invoque tes héros</span>
+        <span><img src="${ICON("key")}">Bâtis ton donjon</span>
+        <span><img src="${ICON("medallion")}">Pille les autres Gardiens</span>
+      </div>`;
+    try {
+      const qr = qrcode(0, "M");
+      qr.addData(URL_FULL); qr.make();
+      const n = qr.getModuleCount();
+      let rects = "";
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) rects += `<rect x="${c}" y="${r}" width="1.02" height="1.02"/>`;
+      document.getElementById("qr").innerHTML = `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" fill="#1a0b2e">${rects}</svg>`;
+    } catch (e) { document.getElementById("qr").remove(); }
+  }
+
+  // Seeded RNG so every render is identical.
+  let seed = variant === "launch" ? 7 : 3;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+  // Starry sky
+  const cv = document.getElementById("sky");
+  const W = cv.width = document.body.clientWidth, H = cv.height = document.body.clientHeight;
+  const ctx = cv.getContext("2d");
+  for (let i = 0; i < (W * H) / 2600; i++) {
+    const x = rnd() * W, y = rnd() * H * 0.85, s = rnd();
+    ctx.globalAlpha = 0.25 + s * 0.75 * (1 - y / H);
+    ctx.fillStyle = s > 0.93 ? "#ffe7a8" : s > 0.8 ? "#bfe9ff" : "#ffffff";
+    const size = s > 0.97 ? 3 : s > 0.85 ? 2 : 1;
+    ctx.fillRect(Math.round(x), Math.round(y), size, size);
+  }
+  ctx.globalAlpha = 1;
+
+  // The Cœur-d'Étoile: a 5-point star made of 5 kite shards.
+  // Teaser: shards drift apart (broken). Launch: reassembled with light rays.
+  const svg = document.getElementById("star");
+  const R = 100, r = 40;
+  const pt = (a, d) => [Math.cos(a) * d, Math.sin(a) * d];
+  const broken = variant === "teaser";
+  const gold = broken ? ["#e8dcff", "#a57bff", "#5a2aa8"] : ["#fffbe6", "#ffd36b", "#e39a2d"];
+  let out = `
+    <defs>
+      <radialGradient id="core" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="${gold[0]}" stop-opacity="1"/>
+        <stop offset="40%" stop-color="${gold[1]}" stop-opacity=".55"/>
+        <stop offset="100%" stop-color="${gold[1]}" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="shard" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="${gold[0]}"/>
+        <stop offset="55%" stop-color="${gold[1]}"/>
+        <stop offset="100%" stop-color="${gold[2]}"/>
+      </linearGradient>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="6" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>`;
+  if (!broken) {
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2 + 0.13;
+      const len = i % 2 ? 150 : 185;
+      const [x1, y1] = pt(a - 0.035, 30), [x2, y2] = pt(a, len), [x3, y3] = pt(a + 0.035, 30);
+      out += `<polygon points="${x1},${y1} ${x2},${y2} ${x3},${y3}" fill="${gold[1]}" opacity="${i % 2 ? .18 : .32}"/>`;
+    }
+  }
+  out += `<circle r="${broken ? 90 : 120}" fill="url(#core)" opacity="${broken ? .7 : 1}"/>`;
+  for (let k = 0; k < 5; k++) {
+    const a = -Math.PI / 2 + (k * 2 * Math.PI) / 5;
+    const [ox, oy] = pt(a, R), [ax, ay] = pt(a - Math.PI / 5, r), [bx, by] = pt(a + Math.PI / 5, r);
+    const drift = broken ? 22 + rnd() * 26 : 0;
+    const rot = broken ? (rnd() - 0.5) * 34 : 0;
+    const [dx, dy] = pt(a, drift);
+    out += `<g transform="translate(${dx},${dy}) rotate(${rot} ${ox * .55} ${oy * .55})" filter="url(#glow)">
+      <polygon points="0,0 ${ax},${ay} ${ox},${oy} ${bx},${by}" fill="url(#shard)" stroke="${gold[0]}" stroke-width="1.5" stroke-linejoin="round"/>
+      <polygon points="0,0 ${ax},${ay} ${ox},${oy}" fill="#ffffff" opacity=".22"/>
+    </g>`;
+  }
+  if (broken) {
+    // little floating splinters
+    for (let i = 0; i < 9; i++) {
+      const a = rnd() * Math.PI * 2, d = 95 + rnd() * 55, s = 4 + rnd() * 7;
+      const [x, y] = pt(a, d);
+      out += `<polygon points="${x},${y - s} ${x + s * .6},${y} ${x},${y + s} ${x - s * .6},${y}" fill="${gold[1]}" opacity="${.5 + rnd() * .5}" filter="url(#glow)"/>`;
+    }
+  }
+  svg.innerHTML = out;
+</script>
+</body>
+</html>
