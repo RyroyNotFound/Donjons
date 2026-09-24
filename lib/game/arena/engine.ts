@@ -18,7 +18,8 @@ import type { ArenaAbilityTag, ArenaRunResult, Element, HeroStats, Role, ZoneDef
 // auto-casts each of its equipped spells (arenaAbilityTag) on cooldown — so a hero's whole build
 // (class, level, stars, talents, masteries, items, spells + their ranks) is what makes the party
 // strong here. Kills drop XP gems; each in-run level pauses on a choice of 3 upgrade cards.
-// A zone boss spawns near the end; killing it ends the run early.
+// A zone boss spawns near the end; killing it ends the run early. Early zones also drop
+// telegraphed hazards on the party (ZoneDefinition.hazard) so standing still isn't a strategy.
 // Crits use each hero's own crit/critDmg stats (+ the run's crit cards); every hit a hero lands
 // carries its elemental affinity (first equipped elemental spell) against the monster's
 // resistances, and elemental monsters' hits are reduced by the heroes' resistances.
@@ -35,6 +36,10 @@ const TANK_SWEEP_RADIUS = 58;
 const ENEMY_CONTACT_COOLDOWN = 0.8;
 /** Floor on raw hit damage, so even a classless hero can slowly clear the first zone. */
 const MIN_RAW_DAMAGE = 4;
+/** Zone hazards (ZoneDefinition.hazard): first strike, warning time before impact, blast radius. */
+const HAZARD_FIRST_SEC = 4;
+export const HAZARD_WARNING_SEC = 1.1;
+const HAZARD_RADIUS = 46;
 
 // --- Deterministic spawn schedule (time-only, so the server can bound reported kills) ---
 
@@ -189,6 +194,15 @@ export interface ArenaGem {
   value: number;
 }
 
+/** A telegraphed ground strike: marked on the floor, lands after `timer` seconds. */
+export interface ArenaHazard {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  timer: number;
+}
+
 export interface ArenaEffect {
   id: number;
   kind: "ring" | "beam" | "text";
@@ -224,6 +238,9 @@ export interface ArenaState {
   enemies: ArenaEnemy[];
   projectiles: ArenaProjectile[];
   gems: ArenaGem[];
+  hazards: ArenaHazard[];
+  /** Seconds until the zone's next hazard is marked. */
+  hazardTimer: number;
   effects: ArenaEffect[];
   mods: RunMods;
   cardStacks: Record<string, number>;
@@ -305,6 +322,8 @@ export function createInitialState(
     enemies: [],
     projectiles: [],
     gems: [],
+    hazards: [],
+    hazardTimer: HAZARD_FIRST_SEC,
     effects: [],
     mods: {
       dmgMul: 1,
@@ -512,8 +531,12 @@ function damageHero(state: ArenaState, hero: ArenaHero, raw: number, type: "phys
   if (!hero.alive) return;
   const def = type === "phys" ? hero.defPhys : hero.defMag;
   const elemMul = element ? elementalMultiplier(element, hero.res[element]) : 1;
-  const dealt = Math.max(raw * 0.25, raw - def * 0.5) * state.mods.damageTakenMul * elemMul;
-  hero.hp -= dealt;
+  loseHp(state, hero, Math.max(raw * 0.25, raw - def * 0.5) * state.mods.damageTakenMul * elemMul);
+}
+
+/** Final HP loss (already mitigated), with the KO bookkeeping. */
+function loseHp(state: ArenaState, hero: ArenaHero, amount: number) {
+  hero.hp -= amount;
   if (hero.hp <= 0) {
     hero.hp = 0;
     hero.alive = false;
@@ -954,6 +977,29 @@ export function stepArena(
       }
     }
     state.enemies = state.enemies.filter((e) => e.hp > 0);
+  }
+
+  // Zone hazards: marked on a hero's spot, land after a warning — standing still eats every one.
+  // Percent of max HP (only "Peau de pierre" reduces it), so a high-defense tank can't ignore them.
+  const hazard = zone.hazard;
+  if (hazard) {
+    state.hazardTimer -= dt;
+    if (state.hazardTimer <= 0) {
+      const target = party[randomInt(rng, 0, party.length - 1)];
+      state.hazards.push({ id: state.nextId++, x: target.x, y: target.y, radius: HAZARD_RADIUS, timer: HAZARD_WARNING_SEC });
+      state.hazardTimer = hazard.intervalSec;
+    }
+    for (const hz of state.hazards) {
+      hz.timer -= dt;
+      if (hz.timer > 0) continue;
+      for (const hero of party) {
+        if (hero.alive && Math.hypot(hero.x - hz.x, hero.y - hz.y) < hz.radius + HERO_RADIUS * 0.5) {
+          loseHp(state, hero, hero.maxHp * hazard.damagePct * state.mods.damageTakenMul);
+        }
+      }
+      addEffect(state, { kind: "ring", x: hz.x, y: hz.y, radius: hz.radius, life: 0.3, color: "#f97316" });
+    }
+    state.hazards = state.hazards.filter((hz) => hz.timer > 0);
   }
 
   // Gems: magnet toward the party, collected on touch.

@@ -397,6 +397,16 @@ export interface ZoneBoss {
   spawnAtSec: number;
 }
 
+/** Telegraphed ground strikes aimed at a hero's current spot: harmless to a moving party, lethal to
+ *  one that stands still. Percent of max HP, so defense doesn't cancel them and difficulty doesn't
+ *  scale them. */
+export interface ZoneHazard {
+  name: string;
+  /** Fraction of each hit hero's max HP. */
+  damagePct: number;
+  intervalSec: number;
+}
+
 export interface ZoneDefinition {
   id: string;
   name: string;
@@ -423,6 +433,8 @@ export interface ZoneDefinition {
   /** An elite (tougher, more XP) joins every Nth wave. */
   eliteEveryNWaves: number;
   boss: ZoneBoss;
+  /** Anti-idle pressure for zones whose monsters are too weak to punish standing still on their own. */
+  hazard?: ZoneHazard;
   /** Hero XP for a full clear (scaled down on defeat). */
   xpReward: number;
   /** Arena background gradient (inner, outer). */

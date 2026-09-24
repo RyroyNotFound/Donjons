@@ -19,6 +19,7 @@ export const ZONES: ZoneDefinition[] = [
     baseWaveSize: 3,
     eliteEveryNWaves: 4,
     boss: { refId: "gobelin-eclaireur", name: "Chef orc", hpMultiplier: 14, atkMultiplier: 1.6, spawnAtSec: 28 },
+    hazard: { name: "Flèches des éclaireurs", damagePct: 0.2, intervalSec: 2.5 },
     xpReward: 40,
     theme: { inner: "#20301f", outer: "#0b100c" },
     loot: {
@@ -46,6 +47,7 @@ export const ZONES: ZoneDefinition[] = [
     baseWaveSize: 3,
     eliteEveryNWaves: 3,
     boss: { refId: "golem-de-pierre", name: "Golem ancien", hpMultiplier: 7, atkMultiplier: 1.8, spawnAtSec: 32 },
+    hazard: { name: "Éboulements", damagePct: 0.2, intervalSec: 2.5 },
     xpReward: 70,
     theme: { inner: "#2a2622", outer: "#0d0b0a" },
     loot: {
@@ -73,6 +75,8 @@ export const ZONES: ZoneDefinition[] = [
     baseWaveSize: 4,
     eliteEveryNWaves: 3,
     boss: { refId: "araignee-venimeuse", name: "Grande chamane", hpMultiplier: 9, atkMultiplier: 2, spawnAtSec: 36 },
+    // The Nécropole has none: its monsters already overrun a party that stands still.
+    hazard: { name: "Foudre des chamans", damagePct: 0.08, intervalSec: 5 },
     xpReward: 110,
     theme: { inner: "#262032", outer: "#0c0a10" },
     loot: {

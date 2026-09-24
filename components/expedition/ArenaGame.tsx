@@ -14,6 +14,7 @@ import {
   createArenaRng,
   createInitialState,
   getCard,
+  HAZARD_WARNING_SEC,
   runResult,
   stepArena,
   xpToNextLevel,
@@ -111,6 +112,22 @@ function draw(
   else {
     ctx.fillStyle = "#18181b";
     ctx.fillRect(0, 0, ARENA_WIDTH, ARENA_HEIGHT);
+  }
+
+  // Hazard warnings: the inner disc fills up until impact.
+  for (const hz of state.hazards) {
+    const progress = 1 - Math.max(0, hz.timer) / HAZARD_WARNING_SEC;
+    ctx.fillStyle = "rgba(239,68,68,0.12)";
+    ctx.strokeStyle = "rgba(248,113,113,0.8)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(hz.x, hz.y, hz.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(249,115,22,0.35)";
+    ctx.beginPath();
+    ctx.arc(hz.x, hz.y, hz.radius * progress, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // XP gems.
@@ -449,6 +466,11 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
             <span className="text-xs text-slate-500">
               ZQSD / WASD / flèches, ou maintiens le clic (ou le doigt) pour guider ton chef d&apos;équipe.
             </span>
+            {zone.hazard && (
+              <span className="text-xs text-orange-300">
+                {zone.hazard.name} : sors des cercles rouges avant l&apos;impact ({Math.round(zone.hazard.damagePct * 100)}% des PV max).
+              </span>
+            )}
           </button>
         )}
 
