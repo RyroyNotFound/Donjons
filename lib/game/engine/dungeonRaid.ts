@@ -11,6 +11,8 @@ import {
 import { partyDisarm, resolveMarchHeal, resolveRoomBattle, resolveTrapTrigger } from "@/lib/game/engine/dungeonCombat";
 import { ELEMENTS, resistancesOf } from "@/lib/game/engine/elements";
 import { ENTRANCE_CELL } from "@/lib/game/content/dungeon";
+import { isBotDefenderId } from "@/lib/game/content/botDungeons";
+import { treasureRoomBonus } from "@/lib/game/engine/loot";
 import { isAdjacent, neighborsOf, roomKey, type Cell } from "@/lib/game/engine/dungeonLayout";
 import type {
   BattleReward,
@@ -47,6 +49,8 @@ export function computeLootPool(defenderProfile: UserProfile, upgrades: DungeonU
   }
   return { gold, resources };
 }
+
+const EMPTY_REWARD: BattleReward = { gold: 0, resources: {} };
 
 function addReward(a: BattleReward, b: BattleReward): BattleReward {
   const resources: Partial<Record<ResourceKind, number>> = { ...a.resources };
@@ -189,6 +193,7 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
     ...(raid.rooms[targetKey] ?? { visited: false, cleared: false }),
   };
   let bankedLoot = raid.bankedLoot;
+  let bankedBonus = raid.bankedBonus ?? EMPTY_REWARD;
   const treasureRoomsReached = [...raid.treasureRoomsReached];
 
   if (cell.type === "trap" && (roomState.trapChargesRemaining ?? 0) > 0) {
@@ -225,12 +230,18 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
   if (status === "in_progress" && cell.type === "treasure" && !treasureRoomsReached.includes(targetKey)) {
     treasureRoomsReached.push(targetKey);
     roomState.cleared = true;
-    const share = shareOfReward(raid.totalLootPool, treasureRoomsTotal(raid));
-    bankedLoot = addReward(bankedLoot, share);
+    // Every treasure room adds loot: a bot's rooms each hold its full loot; a player's rooms split
+    // the stealable stash share, plus a created treasure per room.
+    if (isBotDefenderId(raid.defenderId)) {
+      bankedLoot = addReward(bankedLoot, raid.totalLootPool);
+    } else {
+      bankedLoot = addReward(bankedLoot, shareOfReward(raid.totalLootPool, treasureRoomsTotal(raid)));
+      bankedBonus = addReward(bankedBonus, treasureRoomBonus(raid.defenderSnapshot.defenseLevel ?? 1));
+    }
     newLog.push({
       roomKey: targetKey,
       kind: "info",
-      message: "Vous découvrez une salle au trésor et sécurisez votre part du butin !",
+      message: "Vous découvrez une salle au trésor et sécurisez son butin !",
     });
   }
 
@@ -251,6 +262,7 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
     heroes,
     treasureRoomsReached,
     bankedLoot,
+    bankedBonus,
     status,
     log: [...raid.log, ...newLog],
     updatedAt: Date.now(),
@@ -265,6 +277,12 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
 
 /** What the attacker actually walks away with: the wipe rule discards banked loot entirely. */
 export function finalReward(raid: DungeonRaid): BattleReward {
+  if (raid.status === "wiped") return { gold: 0, resources: {} };
+  return addReward(raid.bankedLoot, raid.bankedBonus ?? EMPTY_REWARD);
+}
+
+/** The part of finalReward taken from a real defender's stash (the created treasure isn't). */
+export function stolenReward(raid: DungeonRaid): BattleReward {
   if (raid.status === "wiped") return { gold: 0, resources: {} };
   return raid.bankedLoot;
 }
@@ -320,7 +338,7 @@ export function toRaidView(raid: DungeonRaid, newLog: RaidLogEntry[] = []): Raid
     heroes: raid.heroes,
     treasureRoomsReached: raid.treasureRoomsReached.length,
     treasureRoomsTotal: treasureRoomsTotal(raid),
-    bankedLoot: raid.bankedLoot,
+    bankedLoot: addReward(raid.bankedLoot, raid.bankedBonus ?? EMPTY_REWARD),
     newLog,
   };
 }

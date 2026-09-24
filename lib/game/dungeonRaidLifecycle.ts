@@ -4,7 +4,7 @@ import type { DocumentReference } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { GameError } from "@/lib/api/handler";
 import { getBotDungeon, isBotDefenderId } from "@/lib/game/content/botDungeons";
-import { finalReward } from "@/lib/game/engine/dungeonRaid";
+import { finalReward, stolenReward } from "@/lib/game/engine/dungeonRaid";
 import { rollConquestBounty, type ConquestBounty } from "@/lib/game/engine/loot";
 import type { BattleReward, DefenseLogEntry, DungeonRaid, Item, RaidStats, ResourceKind, UserProfile } from "@/types/game";
 
@@ -50,6 +50,8 @@ export async function commitRaidStep(
 ): Promise<RaidPayout | undefined> {
   const finished = next.status !== "in_progress";
   const reward = finalReward(next);
+  /** Only this part comes out of a real defender's stash. */
+  const stolen = stolenReward(next);
   const raid = next;
   const vsBot = isBotDefenderId(raid.defenderId);
   const attackerRef = adminDb.collection("users").doc(raid.attackerId);
@@ -85,7 +87,7 @@ export async function commitRaidStep(
       if (vsBot) attackerStats.botWins += 1;
       else attackerStats.pvpWins += 1;
     }
-    if (!vsBot) attackerStats.lootStolen += rewardTotal(reward);
+    if (!vsBot) attackerStats.lootStolen += rewardTotal(stolen);
 
     let crystalsEarned = 0;
     const botDungeonWins = { ...(attacker.botDungeonWins ?? {}) };
@@ -133,7 +135,7 @@ export async function commitRaidStep(
         result: raid.status === "wiped" ? "defended" : raid.status === "victory" ? "conquered" : "fled",
         treasureReached: raid.treasureRoomsReached.length,
         treasureTotal: raid.defenderSnapshot.rooms.filter((r) => r.type === "treasure").length,
-        goldLost: raid.status === "wiped" ? 0 : reward.gold,
+        goldLost: raid.status === "wiped" ? 0 : stolen.gold,
         ...(raid.status === "wiped" ? { fellIn: `${raid.currentRoom.row},${raid.currentRoom.col}` } : {}),
         crystalsGained: raid.status === "wiped" ? DEFENSE_WIN_CRYSTALS : 0,
       };
@@ -149,11 +151,11 @@ export async function commitRaidStep(
         });
       } else {
         const nextDefenderResources = { ...defender.resources };
-        for (const [kind, amount] of Object.entries(reward.resources) as [ResourceKind, number][]) {
+        for (const [kind, amount] of Object.entries(stolen.resources) as [ResourceKind, number][]) {
           nextDefenderResources[kind] = Math.max(0, (nextDefenderResources[kind] ?? 0) - amount);
         }
         tx.update(defenderRef, {
-          gold: Math.max(0, defender.gold - reward.gold),
+          gold: Math.max(0, defender.gold - stolen.gold),
           resources: nextDefenderResources,
           defenseLog,
         });

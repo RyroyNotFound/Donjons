@@ -8,7 +8,8 @@ import { equippedItemsOf, getHeroRole, heroElement, primaryRaidEffect, resolveHe
 import { ELEMENT_ICON, ELEMENT_LABEL, MAX_TRAP_RESISTANCE, RES_KEY } from "@/lib/game/engine/elements";
 import { tryGetClass } from "@/lib/game/content/classes";
 import { RAID_PARTY_MAX } from "@/lib/game/content/dungeon";
-import { conquestBountyPreview } from "@/lib/game/engine/loot";
+import { conquestBountyPreview, treasureRoomBonus } from "@/lib/game/engine/loot";
+import { getBotDungeon } from "@/lib/game/content/botDungeons";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
@@ -30,6 +31,12 @@ function IntelLine({ target }: { target: DungeonTarget }) {
     <div className="mt-1 space-y-0.5 text-xs text-slate-400">
       <p>
         🛡️ Niveau de défense {i.defenseLevel} · {i.roomCount} salle(s) · {i.treasureRooms} trésor(s)
+      </p>
+      <p className="text-amber-200/80">
+        💰 Chaque salle au trésor ({i.treasureRooms}) :{" "}
+        {target.isBot
+          ? `${getBotDungeon(target.defenderId).loot.gold} or + ressources`
+          : `une part du stock du joueur + ${treasureRoomBonus(i.defenseLevel).gold} or et ${treasureRoomBonus(i.defenseLevel).resources.wood} de chaque ressource`}
       </p>
       <p className="text-amber-200/80">
         🏆 Prime de conquête : objet palier {bounty.tier}, {bounty.forgeShards} éclats

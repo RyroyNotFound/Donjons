@@ -90,6 +90,14 @@ export interface ConquestBounty {
   item: DroppedItem;
 }
 
+/** Extra loot found in EACH treasure room of a real player's dungeon, created from nothing (never
+ *  debited from the defender, unlike the stolen share): more treasure rooms = more loot. */
+export function treasureRoomBonus(defenseLevel: number): { gold: number; resources: Partial<Record<ResourceKind, number>> } {
+  const level = Math.max(1, defenseLevel);
+  const amount = Math.round(2 + level * 0.6);
+  return { gold: 30 + level * 10, resources: { wood: amount, ore: amount, essence: amount } };
+}
+
 /** Defense level at which the bounty item reaches each tier (index = tier - 1). */
 const BOUNTY_TIER_LEVELS = [0, 10, 20, 35, 50];
 

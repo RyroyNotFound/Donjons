@@ -3,7 +3,7 @@ import { RARITY_BADGE, RARITY_LABEL } from "@/lib/ui/rarity";
 import { getAffix } from "@/lib/game/content/affixes";
 import { enhancedLine, ENHANCE_BONUS_PER_LEVEL, itemTotalStats } from "@/lib/game/engine/items";
 import { formatStatBonus, ITEM_SLOT_LABEL } from "@/lib/game/statFormat";
-import type { Item } from "@/types/game";
+import type { HeroStats, Item } from "@/types/game";
 
 /** Compact item summary: name (+enhancement), rarity/slot/tier, total stats and each affix line. */
 export function ItemCard({
@@ -22,6 +22,10 @@ export function ItemCard({
   rerollLabel?: string;
 }) {
   const level = item.enhanceLevel ?? 0;
+  // A line's own rolled value never changes (reforge and enhancement leave it alone); the
+  // enhanced value it actually counts for is shown after the arrow.
+  const formatLine = (stats: Partial<HeroStats>) =>
+    level > 0 ? `${formatStatBonus(stats)} → ${formatStatBonus(enhancedLine(stats, level))}` : formatStatBonus(stats);
   return (
     <div className={`flex w-full flex-col rounded-lg border px-3 py-2 text-sm ${RARITY_BADGE[item.rarity]}`}>
       <p className="font-semibold text-slate-100">
@@ -38,14 +42,14 @@ export function ItemCard({
       <ul className="mt-1 space-y-0.5 text-xs text-slate-400">
         {level > 0 && (
           <li className="text-amber-300/70">
-            Amélioration +{level} : +{Math.round(level * ENHANCE_BONUS_PER_LEVEL * 100)}% sur chaque ligne (valeurs ci-dessous)
+            Amélioration +{level} : +{Math.round(level * ENHANCE_BONUS_PER_LEVEL * 100)}% sur chaque ligne (→ valeur réelle)
           </li>
         )}
-        <li>Base : {formatStatBonus(enhancedLine(item.statBonus, level))}</li>
+        <li>Base : {formatLine(item.statBonus)}</li>
         {(item.affixes ?? []).map((affix, i) => (
           <li key={`${affix.affixId}-${i}`} className="flex items-center justify-between gap-2">
             <span>
-              ◆ {getAffix(affix.affixId)?.suffix ?? "Affixe"} : {formatStatBonus(enhancedLine(affix.statBonus, level))}
+              ◆ {getAffix(affix.affixId)?.suffix ?? "Affixe"} : {formatLine(affix.statBonus)}
             </span>
             {onRerollAffix && (
               <button

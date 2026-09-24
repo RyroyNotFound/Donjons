@@ -348,8 +348,14 @@ export interface DungeonRaid {
   /** Keyed by "row,col" — the authoritative fog-of-war truth. */
   rooms: Record<string, RaidRoomState>;
   treasureRoomsReached: string[];
+  /** Real defender: the stash share that can be stolen, split across the treasure rooms. Bot: the
+   *  loot found in EACH treasure room. */
   totalLootPool: BattleReward;
+  /** Loot taken from the defender so far (debited from a real defender when the raid ends). */
   bankedLoot: BattleReward;
+  /** Created loot banked so far (treasureRoomBonus per treasure room vs a real player) — paid to the
+   *  attacker, never debited. Absent on older raids = none. */
+  bankedBonus?: BattleReward;
   /** Defender's Trapcraft damage bonus frozen at raid start (absent on older raids = 1). */
   trapDamageMultiplier?: number;
   status: RaidStatus;
