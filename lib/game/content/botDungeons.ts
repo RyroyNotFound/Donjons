@@ -94,13 +94,15 @@ export const BOT_DUNGEONS: BotDungeonDefinition[] = [
     name: "Sanctuaire piégé",
     tier: 5,
     defenseLevel: 55,
-    hint: "Presque uniquement des pièges, de tous les éléments : Désamorçage et résistance aux pièges font la différence.",
+    hint: "Surtout des pièges, de tous les éléments, puis un gardien avant les trésors : Désamorçage et résistance aux pièges font la différence.",
+    // Every treasure sits behind the guardian room: traps never kill, so a trap-only path to a
+    // treasure would be a risk-free farm.
     rooms: [
       ENTRANCE,
       { row: 2, col: 1, type: "trap", trapIds: ["fosse-a-pieux", "gaz-toxique", "arc-foudroyant"] },
       { row: 2, col: 2, type: "trap", trapIds: ["pluie-de-givre", "runes-explosives", "glyphe-sacre"] },
-      { row: 1, col: 2, type: "treasure" },
       { row: 2, col: 3, type: "monster", monsterRefIds: ["araignee-venimeuse", "golem-de-pierre"] },
+      { row: 1, col: 3, type: "treasure" },
       { row: 3, col: 3, type: "trap", trapIds: ["voile-d-ombre", "arc-foudroyant", "gaz-toxique"] },
       { row: 3, col: 4, type: "treasure" },
       { row: 2, col: 4, type: "trap", trapIds: ["glyphe-sacre", "voile-d-ombre", "runes-explosives", "fosse-a-pieux"] },
