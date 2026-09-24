@@ -39,3 +39,13 @@ export const RARITY_GACHA_FACE: Record<RarityTier, string> = {
   epique: "border-purple-400/60 bg-gradient-to-b from-purple-500/15 to-purple-900/20 text-purple-300 shadow-[0_0_16px_rgba(192,132,252,0.3)]",
   legendaire: "border-amber-300/70 bg-gradient-to-b from-amber-400/20 to-amber-900/20 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.45)]",
 };
+
+/** Inline colors for native <select> options (Tailwind classes don't reach option popups
+ *  reliably): dark rarity-tinted background + readable text. `none` = empty choice. */
+export const RARITY_OPTION_STYLE: Record<RarityTier | "none", { backgroundColor: string; color: string }> = {
+  none: { backgroundColor: "#111827", color: "#94a3b8" },
+  commun: { backgroundColor: "#1f2937", color: "#e2e8f0" },
+  rare: { backgroundColor: "#0c2d4a", color: "#7dd3fc" },
+  epique: { backgroundColor: "#2e1748", color: "#d8b4fe" },
+  legendaire: { backgroundColor: "#3d2a05", color: "#fcd34d" },
+};

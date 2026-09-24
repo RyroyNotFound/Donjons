@@ -7,10 +7,10 @@ import { CLASSES, tryGetClass } from "@/lib/game/content/classes";
 import { getTalentsForClass } from "@/lib/game/content/talents";
 import { heroElement, resolveHeroStats } from "@/lib/game/engine/stats";
 import { ELEMENT_ICON, ELEMENT_LABEL, ELEMENTS, RES_KEY } from "@/lib/game/engine/elements";
-import { itemTotalStats } from "@/lib/game/engine/items";
+import { ITEM_RARITIES, itemTotalStats } from "@/lib/game/engine/items";
 import { formatStatBonus } from "@/lib/game/statFormat";
 import { cleanPlayerName, heroNameError, HERO_NAME_MAX } from "@/lib/game/playerName";
-import { RARITY_LABEL } from "@/lib/ui/rarity";
+import { RARITY_LABEL, RARITY_OPTION_STYLE } from "@/lib/ui/rarity";
 import { xpToNextLevel } from "@/lib/game/engine/xp";
 import { MAX_STAR_RANK, MAX_COMPONENT_RANK, levelCapForStar, rankUpCost } from "@/lib/game/economy";
 import { callApi } from "@/lib/api/client";
@@ -62,12 +62,16 @@ export default function HeroDetailPage() {
     hero.equipment[slot] ? items.find((i) => i.id === hero.equipment[slot]) : undefined,
   ).filter(Boolean) as Item[];
   const stats = resolveHeroStats(hero, equippedItems, ranks);
-  const heroName = (heroId?: string) => heroes.find((h) => h.id === heroId)?.name;
-  // Every item of the slot: free ones first, then those worn by other heroes (picking one takes it off them).
+  // Free items of the slot (plus this hero's own), rarest first, then highest tier / enhancement.
   const itemsForSlot = (slot: ItemSlot) =>
     items
-      .filter((i) => i.slot === slot)
-      .sort((a, b) => Number(!!a.equippedByHeroId && a.equippedByHeroId !== hero.id) - Number(!!b.equippedByHeroId && b.equippedByHeroId !== hero.id));
+      .filter((i) => i.slot === slot && (!i.equippedByHeroId || i.equippedByHeroId === hero.id))
+      .sort(
+        (a, b) =>
+          ITEM_RARITIES.indexOf(b.rarity) - ITEM_RARITIES.indexOf(a.rarity) ||
+          (b.tier ?? 1) - (a.tier ?? 1) ||
+          (b.enhanceLevel ?? 0) - (a.enhanceLevel ?? 0),
+      );
   const builds = sharedBuilds(profile, heroes);
 
   async function run(fn: () => Promise<unknown>) {
@@ -289,6 +293,7 @@ export default function HeroDetailPage() {
             {SLOTS.map((slot) => {
               const currentId = hero.equipment[slot];
               const options = itemsForSlot(slot);
+              const currentItem = currentId ? items.find((i) => i.id === currentId) : undefined;
               return (
                 <div key={slot}>
                   <Label>{SLOT_LABEL[slot]}</Label>
@@ -297,15 +302,15 @@ export default function HeroDetailPage() {
                     value={currentId ?? ""}
                     onChange={(e) => equip(slot, e.target.value || null)}
                     className={selectClass}
+                    style={currentItem ? RARITY_OPTION_STYLE[currentItem.rarity] : undefined}
                   >
-                    <option value="">— Aucun —</option>
+                    <option value="" style={RARITY_OPTION_STYLE.none}>
+                      — Aucun —
+                    </option>
                     {options.map((item) => (
-                      <option key={item.id} value={item.id}>
+                      <option key={item.id} value={item.id} style={RARITY_OPTION_STYLE[item.rarity]}>
                         [{RARITY_LABEL[item.rarity]}] {item.name}
                         {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""} — {formatStatBonus(itemTotalStats(item))}
-                        {item.equippedByHeroId && item.equippedByHeroId !== hero.id
-                          ? ` — porté par ${heroName(item.equippedByHeroId) ?? "un autre héros"}`
-                          : ""}
                       </option>
                     ))}
                   </select>
