@@ -4,8 +4,9 @@ import type { DocumentReference } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { GameError } from "@/lib/api/handler";
 import { getBotDungeon, isBotDefenderId } from "@/lib/game/content/botDungeons";
+import { getAdventureStage, isAdventureDefenderId, type AdventureReward } from "@/lib/game/content/adventure";
 import { finalReward, stolenReward } from "@/lib/game/engine/dungeonRaid";
-import { rollConquestBounty, type ConquestBounty } from "@/lib/game/engine/loot";
+import { rollAdventureItem, rollConquestBounty, type ConquestBounty, type DroppedItem } from "@/lib/game/engine/loot";
 import type { BattleReward, DefenseLogEntry, DungeonRaid, Item, RaidStats, ResourceKind, UserProfile } from "@/types/game";
 
 /** Paid to a defender whose dungeon wiped the attacking party, plus gold scaled on the attacker's level. */
@@ -41,6 +42,8 @@ function rewardTotal(reward: BattleReward): number {
 export interface RaidPayout {
   crystals: number;
   bounty?: ConquestBounty;
+  /** First victory on an adventure stage: its one-time reward and the item it created. */
+  adventure?: { reward: AdventureReward; item: DroppedItem };
 }
 
 export async function commitRaidStep(
@@ -54,8 +57,9 @@ export async function commitRaidStep(
   const stolen = stolenReward(next);
   const raid = next;
   const vsBot = isBotDefenderId(raid.defenderId);
+  const vsAdventure = isAdventureDefenderId(raid.defenderId);
   const attackerRef = adminDb.collection("users").doc(raid.attackerId);
-  const defenderRef = vsBot ? null : adminDb.collection("users").doc(raid.defenderId);
+  const defenderRef = vsBot || vsAdventure ? null : adminDb.collection("users").doc(raid.defenderId);
 
   return adminDb.runTransaction(async (tx) => {
     // Firestore transactions need every read before the first write.
@@ -83,18 +87,18 @@ export async function commitRaidStep(
       nextAttackerResources[kind] = (nextAttackerResources[kind] ?? 0) + amount;
     }
     const attackerStats = { ...EMPTY_RAID_STATS, ...attacker.raidStats };
-    if (raid.status === "victory") {
+    if (raid.status === "victory" && !vsAdventure) {
       if (vsBot) attackerStats.botWins += 1;
       else attackerStats.pvpWins += 1;
     }
-    if (!vsBot) attackerStats.lootStolen += rewardTotal(stolen);
+    if (!vsBot && !vsAdventure) attackerStats.lootStolen += rewardTotal(stolen);
 
     let crystalsEarned = 0;
     const botDungeonWins = { ...(attacker.botDungeonWins ?? {}) };
     const raidConquests = { ...(attacker.raidConquests ?? {}) };
     const defenseLevel = raid.defenderSnapshot.defenseLevel ?? 1;
     const today = utcDay(Date.now());
-    if (raid.status === "victory") {
+    if (raid.status === "victory" && !vsAdventure) {
       if (vsBot) {
         const bot = getBotDungeon(raid.defenderId);
         const previousWins = botDungeonWins[bot.id] ?? 0;
@@ -109,21 +113,44 @@ export async function commitRaidStep(
       }
     }
 
-    const bounty = raid.status === "victory" ? rollConquestBounty(raid.seed, defenseLevel, vsBot) : undefined;
+    const bounty = raid.status === "victory" && !vsAdventure ? rollConquestBounty(raid.seed, defenseLevel, vsBot) : undefined;
     if (bounty) {
       const itemRef = adminDb.collection("items").doc();
       const item: Item = { id: itemRef.id, ownerId: raid.attackerId, ...bounty.item, enhanceLevel: 0 };
       tx.set(itemRef, item);
     }
 
+    // Adventure: the first victory on a stage pays its one-time reward; replays pay nothing.
+    let adventure: RaidPayout["adventure"];
+    const adventureCleared = { ...(attacker.adventureCleared ?? {}) };
+    if (vsAdventure && raid.status === "victory") {
+      const stage = getAdventureStage(raid.defenderId);
+      if (!adventureCleared[stage.id]) {
+        adventureCleared[stage.id] = Date.now();
+        const item = rollAdventureItem(raid.seed, stage.defenseLevel, stage.reward.itemRarity);
+        const itemRef = adminDb.collection("items").doc();
+        const created: Item = { id: itemRef.id, ownerId: raid.attackerId, ...item, enhanceLevel: 0 };
+        tx.set(itemRef, created);
+        adventure = { reward: stage.reward, item };
+      }
+    }
+    const adv = adventure?.reward;
+
     tx.update(attackerRef, {
-      gold: attacker.gold + reward.gold + (bounty?.gold ?? 0),
-      forgeShards: (attacker.forgeShards ?? 0) + (bounty?.forgeShards ?? 0),
+      gold: attacker.gold + reward.gold + (bounty?.gold ?? 0) + (adv?.gold ?? 0),
+      forgeShards: (attacker.forgeShards ?? 0) + (bounty?.forgeShards ?? 0) + (adv?.forgeShards ?? 0),
       resources: nextAttackerResources,
       raidStats: attackerStats,
-      crystals: attacker.crystals + crystalsEarned,
+      crystals: attacker.crystals + crystalsEarned + (adv?.crystals ?? 0),
       botDungeonWins,
       raidConquests,
+      ...(adv
+        ? {
+            adventureCleared,
+            stardust: (attacker.stardust ?? 0) + adv.stardust,
+            rankTokens: attacker.rankTokens + adv.rankTokens,
+          }
+        : {}),
     });
 
     if (defenderRef && defenderSnap?.exists) {
@@ -165,6 +192,6 @@ export async function commitRaidStep(
     for (const hero of raid.heroes) {
       tx.update(adminDb.collection("heroes").doc(hero.id), { status: "idle" });
     }
-    return { crystals: crystalsEarned, bounty };
+    return { crystals: crystalsEarned + (adv?.crystals ?? 0), bounty, adventure };
   });
 }

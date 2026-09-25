@@ -9,6 +9,7 @@ import {
   type GarrisonMember,
 } from "@/lib/game/engine/dungeonRaid";
 import { getBotDungeon, isBotDefenderId } from "@/lib/game/content/botDungeons";
+import { getAdventureStage, isAdventureDefenderId, isStageUnlocked } from "@/lib/game/content/adventure";
 import { ENTRANCE_CELL, RAID_PARTY_MAX } from "@/lib/game/content/dungeon";
 import { getHeroRole, heroElement, primaryRaidEffect } from "@/lib/game/engine/stats";
 import { resistancesOf } from "@/lib/game/engine/elements";
@@ -48,6 +49,14 @@ export const POST = withAuth(async (uid, request) => {
     .get();
   if (!activeSnap.empty) throw new GameError("Un raid est déjà en cours");
 
+  // Only players who built their own dungeon (a saved layout always has a treasure room) may raid
+  // other dungeons. Adventure mode is solo progression: open to everyone.
+  const vsAdventure = isAdventureDefenderId(defenderId);
+  const ownDungeon = vsAdventure ? undefined : ((await adminDb.collection("dungeons").doc(uid).get()).data() as Dungeon | undefined);
+  if (!vsAdventure && (!ownDungeon || ownDungeon.treasureRoomCount < 1)) {
+    throw new GameError("Construisez d'abord votre propre donjon (au moins une salle au trésor) avant d'en attaquer un autre");
+  }
+
   const resolvedHeroes = await loadOwnedHeroesWithStats(uid, heroIds);
   for (const { hero } of resolvedHeroes) {
     if (!hero.classId) throw new GameError(`${hero.name} n'a pas encore de classe assignée`);
@@ -59,7 +68,30 @@ export const POST = withAuth(async (uid, request) => {
   let upgrades: DungeonUpgrades;
   const attackerProfile = (await adminDb.collection("users").doc(uid).get()).data() as UserProfile | undefined;
 
-  if (isBotDefenderId(defenderId)) {
+  if (vsAdventure) {
+    let stage;
+    try {
+      stage = getAdventureStage(defenderId);
+    } catch {
+      throw new GameError("Ce donjon d'aventure n'existe pas");
+    }
+    if (!isStageUnlocked(stage, attackerProfile?.adventureCleared)) {
+      throw new GameError("Terminez d'abord le donjon précédent de l'aventure");
+    }
+    dungeon = {
+      ownerId: defenderId,
+      rooms: stage.rooms,
+      garrisonHeroIds: [],
+      roomCount: stage.rooms.length - 1,
+      treasureRoomCount: stage.rooms.filter((r) => r.type === "treasure").length,
+      pointsSpent: 0,
+      defenseLevel: stage.defenseLevel,
+      updatedAt: 0,
+    };
+    // No loot in the rooms: the first victory pays the stage's one-time reward instead.
+    totalLootPool = { gold: 0, resources: {} };
+    upgrades = { ownerId: defenderId, levels: DEFAULT_UPGRADE_LEVELS, updatedAt: 0 };
+  } else if (isBotDefenderId(defenderId)) {
     const bot = getBotDungeon(defenderId);
     dungeon = {
       ownerId: defenderId,

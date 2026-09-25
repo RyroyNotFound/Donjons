@@ -1,5 +1,5 @@
 import { createRng, randomInt } from "@/lib/game/engine/rng";
-import { MAX_ITEM_TIER, rollItem, rollRarity, type RolledItem } from "@/lib/game/engine/items";
+import { ITEM_RARITIES, MAX_ITEM_TIER, rollItem, rollRarity, type RolledItem } from "@/lib/game/engine/items";
 import { getDifficulty } from "@/lib/game/content/difficulties";
 import type {
   Difficulty,
@@ -144,6 +144,32 @@ const BOUNTY_ITEM_NAMES: Record<ItemSlot, string[]> = {
   armor: ["Cuirasse du pillard", "Manteau du conquérant", "Brigandine du trésor"],
   trinket: ["Sceau du conquérant", "Chevalière du pillard", "Relique du trésor"],
 };
+
+const ADVENTURE_ITEM_NAMES: Record<ItemSlot, string[]> = {
+  weapon: ["Lame de l'éclaireur", "Bâton du pèlerin", "Hache du franchisseur"],
+  armor: ["Cuirasse du voyageur", "Manteau des mondes", "Brigandine du pionnier"],
+  trinket: ["Boussole ancienne", "Sceau du pèlerin", "Relique des mondes"],
+};
+
+/** The guaranteed item of an adventure stage's one-time reward: tier and stats follow the stage
+ *  level like a conquest bounty, rarity is rolled on the boss odds but never below `minRarity`. */
+export function rollAdventureItem(seed: string, level: number, minRarity: ItemRarity): DroppedItem {
+  const rng = createRng(`${seed}:adventure`);
+  const slot = ITEM_SLOTS[randomInt(rng, 0, ITEM_SLOTS.length - 1)];
+  const rolled = rollRarity(rng, BOSS_RARITY_WEIGHTS);
+  const rarity = ITEM_RARITIES.indexOf(rolled) >= ITEM_RARITIES.indexOf(minRarity) ? rolled : minRarity;
+  const power = Math.round((2 + level / 6) * (1 + level / 20));
+  const statKeys: (keyof HeroStats)[] = ["atkPhys", "atkMag", "defPhys", "defMag", "hp"];
+  const primaryStat = statKeys[randomInt(rng, 0, statKeys.length - 1)];
+  const names = ADVENTURE_ITEM_NAMES[slot];
+  return rollItem(rng, {
+    baseName: names[randomInt(rng, 0, names.length - 1)],
+    slot,
+    tier: conquestBountyTier(level),
+    baseStats: { [primaryStat]: primaryStat === "hp" ? power * 3 : power },
+    rarity,
+  });
+}
 
 /** Rolls the loot for a finished expedition run. `performance` (0.3..1.5, see the claim route)
  *  scales gold/resources and the item chance; a boss kill guarantees a better item.

@@ -3,26 +3,22 @@
 import { useParams } from "next/navigation";
 import { useState, ViewTransition } from "react";
 import { useGameData } from "@/lib/game/GameDataProvider";
-import { CLASSES, tryGetClass } from "@/lib/game/content/classes";
-import { getTalentsForClass } from "@/lib/game/content/talents";
-import { heroElement, resolveHeroStats } from "@/lib/game/engine/stats";
-import { ELEMENT_ICON, ELEMENT_LABEL, ELEMENTS, RES_KEY } from "@/lib/game/engine/elements";
-import { ITEM_RARITIES, itemTotalStats } from "@/lib/game/engine/items";
-import { formatStatBonus } from "@/lib/game/statFormat";
+import { tryGetClass } from "@/lib/game/content/classes";
+import { equippedItemsOf, resolveHeroStats } from "@/lib/game/engine/stats";
 import { cleanPlayerName, heroNameError, HERO_NAME_MAX } from "@/lib/game/playerName";
-import { RARITY_LABEL, RARITY_OPTION_STYLE } from "@/lib/ui/rarity";
-import { xpToNextLevel } from "@/lib/game/engine/xp";
-import { MAX_STAR_RANK, MAX_COMPONENT_RANK, levelCapForStar, rankUpCost } from "@/lib/game/economy";
+import { heroTodos, type HeroContext, type HeroTab } from "@/lib/game/heroInsights";
+import { MAX_STAR_RANK, levelCapForStar } from "@/lib/game/economy";
 import { callApi } from "@/lib/api/client";
 import { Card } from "@/components/Card";
-import { ProgressBar } from "@/components/ProgressBar";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
-import { Label, selectClass, inputClass } from "@/components/Field";
+import { inputClass } from "@/components/Field";
 import { Panel } from "@/components/Panel";
 import { EmptyState } from "@/components/EmptyState";
-import { ItemCard } from "@/components/forge/ItemCard";
 import { SpellList, MasteryList } from "@/components/heroes/LoadoutLists";
+import { HeroOverview } from "@/components/heroes/HeroOverview";
+import { HeroEquipment } from "@/components/heroes/HeroEquipment";
+import { HeroTalents } from "@/components/heroes/HeroTalents";
 import { sharedBuilds, MAX_SHARED_BUILDS } from "@/lib/game/builds";
 import { tryGetSpell } from "@/lib/game/content/spells";
 import { getMastery } from "@/lib/game/content/masteries";
@@ -30,14 +26,17 @@ import { PageTransition } from "@/components/PageTransition";
 import { SpriteAnimation } from "@/components/SpriteAnimation";
 import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
 import { ROLE_LABEL } from "@/lib/ui/role";
-import type { Item, ItemSlot } from "@/types/game";
+import { focusRing } from "@/lib/ui/a11y";
+import type { ItemSlot } from "@/types/game";
 
-const SLOTS: ItemSlot[] = ["weapon", "armor", "trinket"];
-const SLOT_LABEL: Record<ItemSlot, string> = {
-  weapon: "Arme",
-  armor: "Armure",
-  trinket: "Babiole",
-};
+const TABS: { id: HeroTab; label: string }[] = [
+  { id: "apercu", label: "Aperçu" },
+  { id: "equipement", label: "Équipement" },
+  { id: "sorts", label: "Sorts" },
+  { id: "maitrises", label: "Maîtrises" },
+  { id: "talents", label: "Talents" },
+  { id: "ensembles", label: "Ensembles" },
+];
 
 export default function HeroDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +45,7 @@ export default function HeroDetailPage() {
   const [busy, setBusy] = useState(false);
   const [buildName, setBuildName] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [tab, setTab] = useState<HeroTab>("apercu");
 
   const hero = heroes.find((h) => h.id === id);
   if (!hero || !profile) {
@@ -58,20 +58,10 @@ export default function HeroDetailPage() {
 
   const classDef = tryGetClass(hero.classId);
   const ranks = profile.componentRanks;
-  const equippedItems = SLOTS.map((slot) =>
-    hero.equipment[slot] ? items.find((i) => i.id === hero.equipment[slot]) : undefined,
-  ).filter(Boolean) as Item[];
-  const stats = resolveHeroStats(hero, equippedItems, ranks);
-  // Free items of the slot (plus this hero's own), rarest first, then highest tier / enhancement.
-  const itemsForSlot = (slot: ItemSlot) =>
-    items
-      .filter((i) => i.slot === slot && (!i.equippedByHeroId || i.equippedByHeroId === hero.id))
-      .sort(
-        (a, b) =>
-          ITEM_RARITIES.indexOf(b.rarity) - ITEM_RARITIES.indexOf(a.rarity) ||
-          (b.tier ?? 1) - (a.tier ?? 1) ||
-          (b.enhanceLevel ?? 0) - (a.enhanceLevel ?? 0),
-      );
+  const stats = resolveHeroStats(hero, equippedItemsOf(hero, items), ranks);
+  const ctx: HeroContext = { hero, items, ranks };
+  // Tabs carrying something to fix get a dot (the overview's list says what).
+  const todoTabs = new Set(heroTodos(ctx, profile).filter((t) => t.tone !== "info").map((t) => t.tab));
   const builds = sharedBuilds(profile, heroes);
 
   async function run(fn: () => Promise<unknown>) {
@@ -176,267 +166,53 @@ export default function HeroDetailPage() {
         </form>
       )}
 
+      <div role="tablist" className="panel-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`relative shrink-0 rounded-lg border px-3 py-1.5 text-sm transition ${focusRing} ${
+              tab === t.id ? "border-amber-500 bg-amber-500/20 text-amber-300" : "border-white/10 text-slate-300 hover:bg-white/5"
+            }`}
+          >
+            {t.label}
+            {t.id !== "apercu" && todoTabs.has(t.id) && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-400" aria-label="à améliorer" />
+            )}
+          </button>
+        ))}
+      </div>
+
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <Card accent={classDef ? undefined : "gold"}>
-        <h2 className="font-display mb-3 font-semibold text-slate-50">Classe</h2>
-        {profile.unlockedClasses.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            Aucune classe obtenue pour l&apos;instant — tentez votre chance à l&apos;invocation.
-          </p>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              disabled={busy || hero.status !== "idle"}
-              value={hero.classId ?? ""}
-              onChange={(e) => e.target.value && assignClass(e.target.value)}
-              className={`${selectClass} max-w-xs`}
-            >
-              <option value="" disabled>
-                — Choisir une classe —
-              </option>
-              {CLASSES.filter((c) => profile.unlockedClasses.includes(c.id)).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({ROLE_LABEL[c.role]})
-                </option>
-              ))}
-            </select>
-            {classDef && (
-              <p className="text-xs text-slate-500">
-                Forces : {classDef.strengths} — Faiblesses : {classDef.weaknesses}
-              </p>
-            )}
-          </div>
-        )}
-        {hero.status !== "idle" && (
-          <p className="mt-2 text-xs text-amber-400">Rendez ce héros disponible pour changer de classe.</p>
-        )}
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <h2 className="font-display mb-3 font-semibold text-slate-50">Statistiques</h2>
-          <div className="mb-3">
-            <p className="mb-1 text-xs text-slate-500">
-              XP {hero.xp}/{xpToNextLevel(hero.level)}
-            </p>
-            <ProgressBar value={hero.xp} max={xpToNextLevel(hero.level)} />
-          </div>
-          <ul className="grid grid-cols-2 gap-2 text-sm text-slate-300">
-            <Panel as="li" padding="sm">PV : {stats.hp}</Panel>
-            <Panel as="li" padding="sm">Vitesse : {stats.spd}</Panel>
-            <Panel as="li" padding="sm">Attaque phys. : {stats.atkPhys}</Panel>
-            <Panel as="li" padding="sm">Attaque mag. : {stats.atkMag}</Panel>
-            <Panel as="li" padding="sm">Défense phys. : {stats.defPhys}</Panel>
-            <Panel as="li" padding="sm">Défense mag. : {stats.defMag}</Panel>
-            <Panel as="li" padding="sm">Critique : {stats.crit}%</Panel>
-            <Panel as="li" padding="sm">Dégâts crit. : +{stats.critDmg}%</Panel>
-            <Panel as="li" padding="sm" className="col-span-2">Rés. pièges (raids) : {stats.trapRes}%</Panel>
-          </ul>
-          {(() => {
-            const magic = stats.atkMag > stats.atkPhys;
-            const used = magic ? stats.atkMag : stats.atkPhys;
-            const unused = magic ? stats.atkPhys : stats.atkMag;
-            return (
-              <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-slate-400">
-                <p>
-                  Attaque utilisée :{" "}
-                  <span className={magic ? "text-violet-300" : "text-amber-200"}>
-                    {magic ? "magique" : "physique"} ({used})
-                  </span>
-                  {unused > 0 && <span className="text-slate-500"> — l&apos;autre ({unused}) ne sert pas</span>}
-                </p>
-                <p className="mt-1 text-slate-500">
-                  Un héros frappe toujours avec la plus haute de ses deux attaques, et la cible réduit le coup avec sa
-                  défense <em>du même type</em> : défense physique contre les coups physiques, défense magique contre les
-                  sorts. Mieux vaut donc tout miser sur un seul type (armes, maîtrises, talents), et viser l&apos;autre
-                  type si la cible a une grosse défense dans le vôtre. Presque tous les monstres frappent en physique,
-                  la Liche des ombres en magique.
-                </p>
-              </div>
-            );
-          })()}
-          {(() => {
-            const element = heroElement(hero);
-            return (
-              <p className="mt-3 text-xs text-slate-400">
-                Affinité :{" "}
-                {element ? (
-                  <span className="text-slate-200">
-                    {ELEMENT_ICON[element]} {ELEMENT_LABEL[element]}
-                  </span>
-                ) : (
-                  <span className="text-slate-500">neutre (équipez un sort élémentaire)</span>
-                )}
-              </p>
-            );
-          })()}
-          <ul className="mt-2 flex flex-wrap gap-2 text-xs">
-            {ELEMENTS.map((element) => {
-              const value = stats[RES_KEY[element]];
-              return (
-                <li
-                  key={element}
-                  title={`Résistance ${ELEMENT_LABEL[element].toLowerCase()}`}
-                  className={`rounded-full border border-white/10 px-2 py-0.5 ${value > 0 ? "text-emerald-300" : value < 0 ? "text-red-400" : "text-slate-500"}`}
-                >
-                  {ELEMENT_ICON[element]} {value}%
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-
-        <Card>
-          <h2 className="font-display mb-3 font-semibold text-slate-50">Équipement</h2>
-          <div className="space-y-3">
-            {SLOTS.map((slot) => {
-              const currentId = hero.equipment[slot];
-              const options = itemsForSlot(slot);
-              const currentItem = currentId ? items.find((i) => i.id === currentId) : undefined;
-              return (
-                <div key={slot}>
-                  <Label>{SLOT_LABEL[slot]}</Label>
-                  <select
-                    disabled={busy}
-                    value={currentId ?? ""}
-                    onChange={(e) => equip(slot, e.target.value || null)}
-                    className={selectClass}
-                    style={currentItem ? RARITY_OPTION_STYLE[currentItem.rarity] : undefined}
-                  >
-                    <option value="" style={RARITY_OPTION_STYLE.none}>
-                      — Aucun —
-                    </option>
-                    {options.map((item) => (
-                      <option key={item.id} value={item.id} style={RARITY_OPTION_STYLE[item.rarity]}>
-                        [{RARITY_LABEL[item.rarity]}] {item.name}
-                        {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""} — {formatStatBonus(itemTotalStats(item))}
-                      </option>
-                    ))}
-                  </select>
-                  {(() => {
-                    const current = currentId ? items.find((i) => i.id === currentId) : undefined;
-                    return current ? (
-                      <div className="mt-2">
-                        <ItemCard item={current} />
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      </div>
-
-      <Card accent="gold">
-        <h2 className="font-display mb-3 font-semibold text-slate-50">Ascension</h2>
-        {!classDef ? (
-          <p className="text-sm text-slate-400">Assignez une classe avant de monter ce héros en rang.</p>
-        ) : (hero.starRank ?? 1) >= MAX_STAR_RANK ? (
-          <p className="text-sm text-slate-400">Rang maximum atteint.</p>
-        ) : (
-          (() => {
-            const cost = rankUpCost(hero.starRank ?? 1);
-            const canAscend =
-              !busy && profile.rankTokens >= cost.rankTokens && profile.gold >= cost.gold;
-            return (
-              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                <p className="text-slate-400">
-                  Coût : {cost.rankTokens} jeton{cost.rankTokens > 1 ? "s" : ""} de rang ({profile.rankTokens}{" "}
-                  dispo) + {cost.gold} or
-                </p>
-                <Button size="sm" onClick={ascend} disabled={!canAscend}>
-                  Monter en étoile
-                </Button>
-              </div>
-            );
-          })()
-        )}
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SpellList hero={hero} ranks={ranks} busy={busy} onToggle={toggleLoadout} />
-        <MasteryList hero={hero} ranks={ranks} busy={busy} onToggle={toggleLoadout} />
-      </div>
-
-      {classDef && (
-        <Card>
-          <h2 className="font-display mb-1 font-semibold text-slate-50">Arbre de talents — {classDef.name}</h2>
-          <p className="mb-1 text-sm text-slate-400">
-            Points disponibles : <span className="text-amber-400">{hero.talentPoints}</span>
-          </p>
-          <p className="mb-4 text-xs text-slate-500">
-            1 point par niveau gagné (expéditions). Un talent obtenu à l&apos;invocation s&apos;active en y investissant
-            des points ; il reste actif tant que ce héros garde cette classe. Les talents non obtenus sont grisés.
-          </p>
-          {(() => {
-            const tree = getTalentsForClass(hero.classId!);
-            return (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {tree.map((node) => {
-                  const owned = (ranks[node.id] ?? 0) > 0;
-                  const invested = hero.talents[node.id] ?? 0;
-                  const maxed = invested >= node.maxRank;
-                  const starOk = !node.requiresStarRank || (hero.starRank ?? 1) >= node.requiresStarRank;
-                  const canAfford = hero.talentPoints >= node.cost;
-                  const canSpend = owned && !maxed && starOk && canAfford && !busy;
-                  const componentRank = ranks[node.id] ?? 1;
-
-                  if (!owned) {
-                    return (
-                      <Panel key={node.id} className="opacity-50">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-slate-300">{node.name}</p>
-                          <span className="text-xs text-slate-500">Palier {node.tier}</span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-500">{node.description}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{formatStatBonus(node.statBonusPerRank)} par rang</p>
-                        <p className="mt-2 text-xs text-slate-500">🔒 À obtenir à l&apos;invocation ou à l&apos;Observatoire</p>
-                      </Panel>
-                    );
-                  }
-
-                  return (
-                    <Panel key={node.id} tone={maxed ? "highlight" : "neutral"}>
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-slate-100">
-                          {node.name}{" "}
-                          <span className="text-xs text-slate-600">
-                            (rang {componentRank}/{MAX_COMPONENT_RANK})
-                          </span>
-                        </p>
-                        <span className="text-xs text-slate-500">
-                          {invested}/{node.maxRank}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-400">{node.description}</p>
-                      <p className="mt-0.5 text-xs text-amber-400">
-                        {formatStatBonus(node.statBonusPerRank)} par rang
-                      </p>
-                      {!starOk && <p className="mt-1 text-xs text-red-400">Nécessite {node.requiresStarRank}★</p>}
-                      {!maxed && starOk && !canAfford && (
-                        <p className="mt-1 text-xs text-slate-500">
-                          {node.cost} point{node.cost > 1 ? "s" : ""} requis (vous en avez {hero.talentPoints})
-                        </p>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={() => spendTalent(node.id)}
-                        disabled={!canSpend}
-                        className="mt-2 w-full"
-                      >
-                        {maxed ? "Maîtrisé" : invested === 0 ? `Activer (${node.cost} pt)` : `Améliorer (${node.cost} pt)`}
-                      </Button>
-                    </Panel>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </Card>
+      {tab === "apercu" && (
+        <HeroOverview
+          ctx={ctx}
+          stats={stats}
+          classDef={classDef}
+          profile={profile}
+          busy={busy}
+          onAssignClass={assignClass}
+          onAscend={ascend}
+          goTo={setTab}
+        />
       )}
+      {tab === "equipement" && <HeroEquipment ctx={ctx} busy={busy} onEquip={equip} />}
+      {tab === "sorts" && <SpellList hero={hero} stats={stats} role={classDef?.role} ranks={ranks} busy={busy} onToggle={toggleLoadout} />}
+      {tab === "maitrises" && <MasteryList ctx={ctx} busy={busy} onToggle={toggleLoadout} />}
+      {tab === "talents" &&
+        (classDef ? (
+          <HeroTalents ctx={ctx} classDef={classDef} busy={busy} onSpend={spendTalent} />
+        ) : (
+          <Card>
+            <p className="text-sm text-slate-400">Choisissez d&apos;abord une classe (onglet Aperçu) : chaque classe a son arbre de talents.</p>
+          </Card>
+        ))}
 
+      {tab === "ensembles" && (
       <Card>
         <h2 className="font-display mb-1 font-semibold text-slate-50">Ensembles</h2>
         <p className="mb-4 text-sm text-slate-400">
@@ -496,6 +272,7 @@ export default function HeroDetailPage() {
           </div>
         )}
       </Card>
+      )}
     </div>
     </PageTransition>
   );

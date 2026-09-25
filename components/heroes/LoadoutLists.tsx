@@ -5,16 +5,19 @@ import { useState } from "react";
 import { SPELLS } from "@/lib/game/content/spells";
 import { MASTERIES } from "@/lib/game/content/masteries";
 import { CLASSES } from "@/lib/game/content/classes";
-import { ARENA_SPELL_TAGS } from "@/lib/game/arena/engine";
+import { ARENA_SPELL_TAGS, arenaSpellPower, describeArenaSpellValue } from "@/lib/game/arena/engine";
+import { RAID_EFFECT_NAME } from "@/lib/game/engine/dungeonCombat";
 import { ELEMENT_ICON, ELEMENT_LABEL, ELEMENTS } from "@/lib/game/engine/elements";
-import { formatStatBonus, RAID_EFFECT_LABEL, ARENA_EFFECT_LABEL } from "@/lib/game/statFormat";
-import { MAX_COMPONENT_RANK, SPELL_SLOTS, MASTERY_SLOTS } from "@/lib/game/economy";
+import { formatStatBonus, RAID_EFFECT_LABEL, describeRaidSpellValue } from "@/lib/game/statFormat";
+import { componentRankMultiplier, MAX_COMPONENT_RANK, SPELL_SLOTS, MASTERY_SLOTS } from "@/lib/game/economy";
+import { masteryImpact, type HeroContext } from "@/lib/game/heroInsights";
+import { ImpactBadge } from "@/components/heroes/ImpactBadge";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { Panel } from "@/components/Panel";
 import { inputClass, selectClass } from "@/components/Field";
-import type { ArenaAbilityTag, Hero, HeroStats, RaidEffectTag } from "@/types/game";
+import type { ArenaAbilityTag, Hero, HeroStats, RaidEffectTag, Role } from "@/types/game";
 
 type Toggle = (kind: "spell" | "mastery", refId: string, equip: boolean) => void;
 
@@ -23,6 +26,19 @@ function matchesSearch(query: string, ...texts: string[]): boolean {
   const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const q = norm(query.trim());
   return q === "" || texts.some((t) => norm(t).includes(q));
+}
+
+/** Search box always visible; the other filters fold behind a toggle showing how many are active. */
+function FilterToggle({ open, active, onToggle }: { open: boolean; active: number; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`shrink-0 rounded-lg border px-3 text-sm ${active ? "border-amber-500/60 text-amber-300" : "border-white/10 text-slate-300 hover:bg-white/5"}`}
+    >
+      Filtres{active ? ` (${active})` : ""} {open ? "▴" : "▾"}
+    </button>
+  );
 }
 
 function NoneOwned({ what }: { what: string }) {
@@ -37,28 +53,21 @@ function NoneOwned({ what }: { what: string }) {
   );
 }
 
-const RAID_EFFECT_SHORT: Record<RaidEffectTag, string> = {
-  cleave: "Éclaboussure",
-  execute: "Exécution",
-  pierce: "Perce-défense",
-  stun: "Étourdissement",
-  lifesteal: "Vol de vie",
-  poison: "Poison",
-  shield: "Bouclier",
-  heal: "Soin renforcé",
-  disarm: "Désamorçage",
-  scout: "Éclaireur",
-};
-const RAID_TAGS = Object.keys(RAID_EFFECT_SHORT) as RaidEffectTag[];
+const RAID_TAGS = Object.keys(RAID_EFFECT_NAME) as RaidEffectTag[];
 const ARENA_TAGS = Object.keys(ARENA_SPELL_TAGS) as ArenaAbilityTag[];
 
 export function SpellList({
   hero,
+  stats,
+  role,
   ranks,
   busy,
   onToggle,
 }: {
   hero: Hero;
+  /** The hero's resolved stats: spell values are computed from its actual attack. */
+  stats: HeroStats;
+  role?: Role;
   ranks: Record<string, number>;
   busy: boolean;
   onToggle: Toggle;
@@ -69,6 +78,8 @@ export function SpellList({
   const [raidTag, setRaidTag] = useState("all");
   const [arenaTag, setArenaTag] = useState("all");
   const [equippedOnly, setEquippedOnly] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = [element !== "all", classFilter !== "all", raidTag !== "all", arenaTag !== "all", equippedOnly].filter(Boolean).length;
 
   const owned = SPELLS.filter((spell) => (ranks[spell.id] ?? 0) > 0);
   const shown = owned
@@ -89,19 +100,19 @@ export function SpellList({
       <h2 className="font-display mb-1 font-semibold text-slate-50">Sorts</h2>
       <p className="mb-3 text-sm text-slate-400">
         Emplacements : {hero.equippedSpellIds.length}/{SPELL_SLOTS} — utilisables sur n&apos;importe quel héros ; la
-        classe assortie donne un bonus de puissance.
+        classe assortie donne un bonus de puissance. Valeurs calculées avec l&apos;attaque de ce héros (
+        {Math.max(stats.atkPhys, stats.atkMag)}), avant la défense ennemie. En donjon, seul le 1er sort équipé agit.
       </p>
       {owned.length === 0 ? (
         <NoneOwned what="sort" />
       ) : (
         <>
+          <div className="mb-3 flex gap-2">
+            <input className={inputClass} placeholder="Rechercher un sort…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <FilterToggle open={filtersOpen} active={activeFilters} onToggle={() => setFiltersOpen((v) => !v)} />
+          </div>
+          {filtersOpen && (
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <input
-              className={`${inputClass} col-span-2`}
-              placeholder="Rechercher un sort…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
             <select className={selectClass} value={element} onChange={(e) => setElement(e.target.value)} aria-label="Élément">
               <option value="all">Tous les éléments</option>
               {ELEMENTS.map((el) => (
@@ -124,7 +135,7 @@ export function SpellList({
               <option value="all">Tout effet en donjon</option>
               {RAID_TAGS.map((tag) => (
                 <option key={tag} value={tag}>
-                  {RAID_EFFECT_SHORT[tag]}
+                  {RAID_EFFECT_NAME[tag]}
                 </option>
               ))}
             </select>
@@ -140,6 +151,7 @@ export function SpellList({
               Équipés uniquement
             </Chip>
           </div>
+          )}
           <p className="mb-2 text-xs text-slate-500">
             {shown.length} / {owned.length} sort{owned.length > 1 ? "s" : ""}
           </p>
@@ -148,6 +160,9 @@ export function SpellList({
               const equipped = hero.equippedSpellIds.includes(spell.id);
               const full = !equipped && hero.equippedSpellIds.length >= SPELL_SLOTS;
               const classMatch = !!spell.classId && spell.classId === hero.classId;
+              const raidActive = hero.equippedSpellIds[0] === spell.id;
+              const arena = ARENA_SPELL_TAGS[spell.arenaAbilityTag];
+              const power = arenaSpellPower(spell, hero.classId, ranks[spell.id] ?? 1);
               return (
                 <Panel key={spell.id} tone={equipped ? "highlight" : "neutral"} className="flex items-center justify-between gap-3">
                   <div>
@@ -164,8 +179,15 @@ export function SpellList({
                       )}
                     </p>
                     <p className="text-xs text-slate-400">{spell.description}</p>
-                    <p className="mt-0.5 text-xs text-amber-400">Donjon : {RAID_EFFECT_LABEL[spell.raidEffectTag]}</p>
-                    <p className="text-xs text-sky-400">{ARENA_EFFECT_LABEL[spell.arenaAbilityTag]}</p>
+                    <p className={`mt-0.5 text-xs ${equipped && !raidActive ? "text-slate-500" : "text-amber-400"}`} title={RAID_EFFECT_LABEL[spell.raidEffectTag]}>
+                      Donjon · {RAID_EFFECT_NAME[spell.raidEffectTag]} : {describeRaidSpellValue(spell.raidEffectTag, classMatch, stats, role)}
+                      {raidActive && <span className="ml-1 text-emerald-400">(actif)</span>}
+                      {equipped && !raidActive && <span className="ml-1">(inactif : seul le 1er sort équipé agit en donjon)</span>}
+                    </p>
+                    <p className="text-xs text-sky-400" title={arena.description}>
+                      Arène · {arena.icon} {arena.label} : {describeArenaSpellValue(spell.arenaAbilityTag, Math.max(stats.atkPhys, stats.atkMag), stats.hp, power)}{" "}
+                      <span className="text-slate-500">(toutes les {String(arena.cooldown).replace(".", ",")} s)</span>
+                    </p>
                   </div>
                   <Button size="sm" onClick={() => onToggle("spell", spell.id, !equipped)} disabled={busy || full}>
                     {equipped ? "Retirer" : "Équiper"}
@@ -193,23 +215,31 @@ const MASTERY_STAT_GROUPS: { id: string; label: string; stats: (keyof HeroStats)
   { id: "trapRes", label: "Résistance aux pièges", stats: ["trapRes"] },
 ];
 
+/** A mastery's bonus at the given gacha rank, as resolveHeroStats applies it. */
+function scaled(bonus: Partial<HeroStats>, rank: number): Partial<HeroStats> {
+  const mul = componentRankMultiplier(rank);
+  return Object.fromEntries(Object.entries(bonus).map(([k, v]) => [k, Math.round((v as number) * mul * 10) / 10])) as Partial<HeroStats>;
+}
+
 export function MasteryList({
-  hero,
-  ranks,
+  ctx,
   busy,
   onToggle,
 }: {
-  hero: Hero;
-  ranks: Record<string, number>;
+  ctx: HeroContext;
   busy: boolean;
   onToggle: Toggle;
 }) {
+  const { hero, ranks } = ctx;
   const [search, setSearch] = useState("");
   const [group, setGroup] = useState("all");
   const [noMalus, setNoMalus] = useState(false);
   const [equippedOnly, setEquippedOnly] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = [group !== "all", noMalus, equippedOnly].filter(Boolean).length;
 
   const owned = MASTERIES.filter((m) => (ranks[m.id] ?? 0) > 0);
+  const impacts = new Map(owned.map((m) => [m.id, masteryImpact(ctx, m.id)]));
   const groupStats = MASTERY_STAT_GROUPS.find((g) => g.id === group)?.stats;
   const shown = owned
     .filter((mastery) => {
@@ -219,25 +249,29 @@ export function MasteryList({
       if (groupStats && !values.some(([stat, v]) => v > 0 && groupStats.includes(stat))) return false;
       return matchesSearch(search, mastery.name, mastery.description);
     })
-    .sort((a, b) => Number(hero.equippedMasteryIds.includes(b.id)) - Number(hero.equippedMasteryIds.includes(a.id)));
+    .sort(
+      (a, b) =>
+        Number(hero.equippedMasteryIds.includes(b.id)) - Number(hero.equippedMasteryIds.includes(a.id)) ||
+        impacts.get(b.id)!.delta - impacts.get(a.id)!.delta,
+    );
 
   return (
     <Card>
       <h2 className="font-display mb-1 font-semibold text-slate-50">Maîtrises</h2>
       <p className="mb-3 text-sm text-slate-400">
-        Emplacements : {hero.equippedMasteryIds.length}/{MASTERY_SLOTS} — universelles, disponibles sans classe.
+        Emplacements : {hero.equippedMasteryIds.length}/{MASTERY_SLOTS} — bonus de stats passifs. Triées par gain de puissance
+        pour ce héros ; valeurs au rang possédé.
       </p>
       {owned.length === 0 ? (
         <NoneOwned what="maîtrise" />
       ) : (
         <>
+          <div className="mb-3 flex gap-2">
+            <input className={inputClass} placeholder="Rechercher une maîtrise…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <FilterToggle open={filtersOpen} active={activeFilters} onToggle={() => setFiltersOpen((v) => !v)} />
+          </div>
+          {filtersOpen && (
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <input
-              className={`${inputClass} col-span-2`}
-              placeholder="Rechercher une maîtrise…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
             <select className={`${selectClass} col-span-2`} value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Statistique">
               <option value="all">Toutes les statistiques</option>
               {MASTERY_STAT_GROUPS.map((g) => (
@@ -253,6 +287,7 @@ export function MasteryList({
               Équipées uniquement
             </Chip>
           </div>
+          )}
           <p className="mb-2 text-xs text-slate-500">
             {shown.length} / {owned.length} maîtrise{owned.length > 1 ? "s" : ""}
           </p>
@@ -269,8 +304,9 @@ export function MasteryList({
                         Rang {ranks[mastery.id] ?? 1}/{MAX_COMPONENT_RANK}
                       </span>
                     </p>
-                    <p className="text-xs text-slate-400">{mastery.description}</p>
-                    <p className="mt-0.5 text-xs text-amber-400">{formatStatBonus(mastery.statBonus)}</p>
+                    <p className="text-xs text-amber-400">{formatStatBonus(scaled(mastery.statBonus, ranks[mastery.id] ?? 1))}</p>
+                    <p className="mb-1 text-xs text-slate-500">{mastery.description}</p>
+                    <ImpactBadge impact={impacts.get(mastery.id)!} kept={equipped} />
                   </div>
                   <Button size="sm" onClick={() => onToggle("mastery", mastery.id, !equipped)} disabled={busy || full}>
                     {equipped ? "Retirer" : "Équiper"}

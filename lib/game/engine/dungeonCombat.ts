@@ -18,16 +18,16 @@
 
 import { critChance, critMultiplier, elementalMultiplier, MAX_TRAP_RESISTANCE } from "@/lib/game/engine/elements";
 import { TRAP_STACK_FALLOFF } from "@/lib/game/content/dungeon";
-import type { DungeonOccupant, RaidEffectTag, RaidHeroState, RaidLogEntry, Role, TrapDefinition } from "@/types/game";
+import type { DungeonOccupant, RaidBattleUnitReport, RaidEffectTag, RaidHeroState, RaidLogEntry, Role, TrapDefinition } from "@/types/game";
 
 export type RoomOccupant = DungeonOccupant;
 
-const MAX_ROUNDS = 30;
+export const MAX_ROUNDS = 30;
 
 /** Per-tag effect magnitude, stronger when the spell's class matches the caster's active class
  *  (RaidHeroState.raidEffectBonus / DungeonOccupant.raidEffectBonus). Spells work at `base`
  *  magnitude regardless of class — the class match is a bonus, not a requirement. */
-const RAID_MAGNITUDE: Record<RaidEffectTag, { base: number; bonus: number }> = {
+export const RAID_MAGNITUDE: Record<RaidEffectTag, { base: number; bonus: number }> = {
   cleave: { base: 0.3, bonus: 0.45 }, // splash damage, as a ratio of the hit's mitigated damage
   execute: { base: 1.5, bonus: 1.75 }, // damage multiplier vs a target below 30% HP
   pierce: { base: 0.5, bonus: 0.7 }, // defense ignored, as a ratio
@@ -90,6 +90,35 @@ function magnitude(tag: RaidEffectTag, bonus: boolean): number {
   return bonus ? RAID_MAGNITUDE[tag].bonus : RAID_MAGNITUDE[tag].base;
 }
 
+/** Effect magnitude a unit's spell has in raids (class-matched or not) — for UI previews. */
+export function raidEffectMagnitude(tag: RaidEffectTag, bonus: boolean): number {
+  return magnitude(tag, bonus);
+}
+
+/** Short player-facing names of the raid effects, shown on combat log lines and spell filters. */
+export const RAID_EFFECT_NAME: Record<RaidEffectTag, string> = {
+  cleave: "Éclaboussure",
+  execute: "Exécution",
+  pierce: "Perce-défense",
+  stun: "Étourdissement",
+  lifesteal: "Vol de vie",
+  poison: "Poison",
+  shield: "Bouclier",
+  heal: "Soin renforcé",
+  disarm: "Désamorçage",
+  scout: "Éclaireur",
+};
+
+/** Share of the target's defense subtracted from each hit. */
+export const DEFENSE_FACTOR = 0.5;
+/** Execute threshold (target HP ratio). */
+export const EXECUTE_THRESHOLD = 0.3;
+
+/** A healer's per-round heal (before the "heal" spell multiplier). */
+export function raidHealAmount(atk: number, multiplier = 1): number {
+  return Math.round((6 + atk * 1.2) * multiplier);
+}
+
 function damageOf(rng: () => number, atk: number): number {
   const variance = 0.85 + rng() * 0.3;
   return Math.max(1, Math.round(atk * variance));
@@ -104,16 +133,28 @@ function pickTarget<T extends { role?: Role; hp: number }>(rng: () => number, un
 }
 
 /** A unit's attack is whichever of atkPhys/atkMag is higher — that's the damage type it deals this fight. */
-function attackPower(actor: { atkPhys: number; atkMag: number }): { value: number; type: "phys" | "mag" } {
+export function attackPower(actor: { atkPhys: number; atkMag: number }): { value: number; type: "phys" | "mag" } {
   return actor.atkPhys >= actor.atkMag
     ? { value: actor.atkPhys, type: "phys" }
     : { value: actor.atkMag, type: "mag" };
 }
 
+type Tally = Partial<Record<"dealt" | "taken" | "healed" | "lostToDefense" | "rawDealt" | "hits" | "crits", number>>;
+
 /** Effect state that persists across rounds within a single room fight (stuns/shields are consumed on next use). */
 interface EffectState {
   stunned: Set<string>;
   shielded: Map<string, number>;
+  /** Per-unit tallies for the post-fight report. */
+  report: Map<string, RaidBattleUnitReport>;
+  round: number;
+  side: "hero" | "enemy";
+}
+
+function tally(report: Map<string, RaidBattleUnitReport>, id: string, add: Tally) {
+  const r = report.get(id);
+  if (!r) return;
+  for (const [k, v] of Object.entries(add) as [keyof Tally, number][]) r[k] += v;
 }
 
 function runSide<A extends RoomOccupant, D extends RoomOccupant>(
@@ -124,19 +165,16 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
   log: RaidLogEntry[],
   effect: EffectState,
 ) {
+  const { round, side, report } = effect;
   const alive = actingSide.filter((u) => u.hp > 0);
   const healer = alive.find((u) => u.role === "HEAL" && u.raidEffectTag === "heal");
   const attackers = alive.filter((u) => u !== healer);
+  const push = (entry: Omit<RaidLogEntry, "roomKey" | "round" | "side">) => log.push({ roomKey, round, side, ...entry });
 
   for (const actor of attackers) {
     if (effect.stunned.has(actor.id)) {
       effect.stunned.delete(actor.id);
-      log.push({
-        roomKey,
-        kind: "info",
-        message: `${actor.name} est étourdi et ne peut agir.`,
-        actorId: actor.id,
-      });
+      push({ kind: "info", message: `${actor.name} est étourdi et passe son tour.`, actorId: actor.id, effect: RAID_EFFECT_NAME.stun });
       continue;
     }
 
@@ -147,14 +185,23 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
     // Utility tags (disarm/scout) work outside combat: in a fight the hero attacks plainly.
     const tag = actor.raidEffectTag === "disarm" || actor.raidEffectTag === "scout" ? undefined : actor.raidEffectTag;
     const bonus = !!actor.raidEffectBonus;
+    const effects: string[] = [];
 
     let rawDamage = damageOf(rng, value);
-    if (tag === "execute" && target.hp / target.maxHp < 0.3) rawDamage = Math.round(rawDamage * magnitude(tag, bonus));
-    if (tag === "poison") rawDamage = Math.round(rawDamage * magnitude(tag, bonus));
+    if (tag === "execute" && target.hp / target.maxHp < EXECUTE_THRESHOLD) {
+      rawDamage = Math.round(rawDamage * magnitude(tag, bonus));
+      effects.push(RAID_EFFECT_NAME.execute);
+    }
+    if (tag === "poison") {
+      rawDamage = Math.round(rawDamage * magnitude(tag, bonus));
+      effects.push(RAID_EFFECT_NAME.poison);
+    }
 
     const rawDef = type === "phys" ? target.defPhys : target.defMag;
     const effectiveDef = tag === "pierce" ? rawDef * (1 - magnitude(tag, bonus)) : rawDef;
-    let mitigated = Math.max(1, rawDamage - Math.round(effectiveDef * 0.5));
+    if (tag === "pierce" && rawDef > 0) effects.push(RAID_EFFECT_NAME.pierce);
+    let mitigated = Math.max(1, rawDamage - Math.round(effectiveDef * DEFENSE_FACTOR));
+    const lostToDefense = rawDamage - mitigated;
     const crit = rng() < critChance(actor.crit);
     if (crit) mitigated = Math.round(mitigated * critMultiplier(actor.critDmg));
     const elemMul = elementalMultiplier(actor.element, actor.element ? target.res?.[actor.element] : 0);
@@ -167,19 +214,31 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
     }
 
     const shieldReduction = effect.shielded.get(target.id);
+    let absorbed = 0;
     if (shieldReduction) {
+      const before = mitigated;
       mitigated = Math.max(1, Math.round(mitigated * (1 - shieldReduction)));
+      absorbed = before - mitigated;
       effect.shielded.delete(target.id);
     }
 
+    const dealt = Math.min(target.hp, mitigated);
     target.hp = Math.max(0, target.hp - mitigated);
-    log.push({
-      roomKey,
+    tally(report, actor.id, { dealt, rawDealt: rawDamage, lostToDefense, hits: 1, crits: crit ? 1 : 0 });
+    tally(report, target.id, { taken: dealt });
+    const notes = [
+      elemMul > 1 ? "point faible !" : elemMul < 1 ? "résiste" : "",
+      absorbed > 0 ? `bouclier −${absorbed}` : "",
+      actorWeak ? "affaibli" : "",
+    ].filter(Boolean);
+    push({
       kind: "attack",
-      message: `${actor.name} inflige ${mitigated} dégâts${crit ? " critiques" : ""} à ${target.name}${elemMul > 1 ? " (point faible !)" : elemMul < 1 ? " (résiste)" : ""} (${target.hp} PV restants).`,
+      message: `${actor.name} inflige ${mitigated} dégâts${crit ? " critiques" : ""} à ${target.name}${notes.length ? ` (${notes.join(", ")})` : ""}${target.hp <= 0 ? " — K.O. !" : ` (${target.hp} PV restants).`}`,
       actorId: actor.id,
       targetId: target.id,
       hpAfter: target.hp,
+      crit: crit || undefined,
+      effect: effects.length ? effects.join(" + ") : undefined,
     });
 
     if (tag === "cleave") {
@@ -187,60 +246,105 @@ function runSide<A extends RoomOccupant, D extends RoomOccupant>(
       if (others.length > 0) {
         const splash = others[Math.floor(rng() * others.length)];
         const splashDmg = Math.max(1, Math.round(mitigated * magnitude(tag, bonus)));
+        const splashDealt = Math.min(splash.hp, splashDmg);
         splash.hp = Math.max(0, splash.hp - splashDmg);
-        log.push({
-          roomKey,
+        tally(report, actor.id, { dealt: splashDealt });
+        tally(report, splash.id, { taken: splashDealt });
+        push({
           kind: "attack",
-          message: `L'onde de ${actor.name} touche aussi ${splash.name} (${splashDmg} dégâts).`,
+          message: `L'onde de ${actor.name} touche aussi ${splash.name} : ${splashDmg} dégâts${splash.hp <= 0 ? " — K.O. !" : ` (${splash.hp} PV restants).`}`,
           actorId: actor.id,
           targetId: splash.id,
           hpAfter: splash.hp,
+          effect: RAID_EFFECT_NAME.cleave,
         });
       }
     } else if (tag === "lifesteal") {
-      const healAmount = Math.round(mitigated * magnitude(tag, bonus));
-      actor.hp = Math.min(actor.maxHp, actor.hp + healAmount);
-      log.push({
-        roomKey,
-        kind: "heal",
-        message: `${actor.name} se régénère de ${healAmount} PV.`,
-        actorId: actor.id,
-        hpAfter: actor.hp,
-      });
-    } else if (tag === "stun") {
+      const healAmount = Math.min(actor.maxHp - actor.hp, Math.round(mitigated * magnitude(tag, bonus)));
+      if (healAmount > 0) {
+        actor.hp += healAmount;
+        tally(report, actor.id, { healed: healAmount });
+        push({
+          kind: "heal",
+          message: `${actor.name} draine ${healAmount} PV (${actor.hp}/${actor.maxHp}).`,
+          actorId: actor.id,
+          targetId: actor.id,
+          hpAfter: actor.hp,
+          effect: RAID_EFFECT_NAME.lifesteal,
+        });
+      }
+    } else if (tag === "stun" && target.hp > 0) {
       effect.stunned.add(target.id);
+      push({
+        kind: "info",
+        message: `${target.name} est étourdi : il perdra sa prochaine action.`,
+        actorId: actor.id,
+        targetId: target.id,
+        effect: RAID_EFFECT_NAME.stun,
+      });
     } else if (tag === "shield") {
-      effect.shielded.set(actor.id, magnitude(tag, bonus));
+      const reduction = magnitude(tag, bonus);
+      effect.shielded.set(actor.id, reduction);
+      push({
+        kind: "info",
+        message: `${actor.name} se protège : −${Math.round(reduction * 100)} % sur le prochain coup reçu.`,
+        actorId: actor.id,
+        effect: RAID_EFFECT_NAME.shield,
+      });
     }
   }
 
   if (healer && healer.hp > 0 && effect.stunned.has(healer.id)) {
     effect.stunned.delete(healer.id);
-    log.push({
-      roomKey,
-      kind: "info",
-      message: `${healer.name} est étourdi et ne peut agir.`,
-      actorId: healer.id,
-    });
+    push({ kind: "info", message: `${healer.name} est étourdi et passe son tour.`, actorId: healer.id, effect: RAID_EFFECT_NAME.stun });
   } else if (healer && healer.hp > 0) {
     // Most wounded ally by HP ratio — the lowest absolute HP may well be a full-health squishy.
     const lowest = alive
       .filter((u) => u.hp > 0 && u.hp < u.maxHp)
       .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
     if (lowest) {
-      const healMultiplier = magnitude("heal", !!healer.raidEffectBonus);
-      const healAmount = Math.round((6 + Math.max(healer.atkPhys, healer.atkMag) * 1.2) * healMultiplier);
-      lowest.hp = Math.min(lowest.maxHp, lowest.hp + healAmount);
-      log.push({
-        roomKey,
+      const healAmount = raidHealAmount(Math.max(healer.atkPhys, healer.atkMag), magnitude("heal", !!healer.raidEffectBonus));
+      const restored = Math.min(lowest.maxHp - lowest.hp, healAmount);
+      lowest.hp += restored;
+      tally(report, healer.id, { healed: restored });
+      push({
         kind: "heal",
-        message: `${healer.name} soigne ${lowest.name} de ${healAmount} PV.`,
+        message: `${healer.name} soigne ${lowest.name} de ${restored} PV (${lowest.hp}/${lowest.maxHp}).`,
         actorId: healer.id,
         targetId: lowest.id,
         hpAfter: lowest.hp,
+        effect: RAID_EFFECT_NAME.heal,
       });
     }
   }
+}
+
+function unitReport(unit: RoomOccupant & { weakened?: number }, side: "hero" | "enemy"): RaidBattleUnitReport {
+  const { value, type } = attackPower(unit);
+  return {
+    id: unit.id,
+    name: unit.name,
+    side,
+    role: unit.role,
+    maxHp: unit.maxHp,
+    hpStart: unit.hp,
+    hpEnd: unit.hp,
+    atk: value,
+    atkType: type,
+    defPhys: unit.defPhys,
+    defMag: unit.defMag,
+    element: unit.element,
+    raidEffectTag: unit.raidEffectTag,
+    raidEffectBonus: unit.raidEffectBonus || undefined,
+    weakened: unit.weakened || undefined,
+    dealt: 0,
+    taken: 0,
+    healed: 0,
+    lostToDefense: 0,
+    rawDealt: 0,
+    hits: 0,
+    crits: 0,
+  };
 }
 
 export interface RoomBattleResult {
@@ -249,7 +353,8 @@ export interface RoomBattleResult {
   log: RaidLogEntry[];
 }
 
-/** Runs the attacking heroes against a room's occupants (monsters and/or garrison heroes) until one side is wiped. */
+/** Runs the attacking heroes against a room's occupants (monsters and/or garrison heroes) until one
+ *  side is wiped. Every entry carries its round and camp; the last one carries the fight's report. */
 export function resolveRoomBattle(
   roomKey: string,
   heroes: RaidHeroState[],
@@ -259,13 +364,26 @@ export function resolveRoomBattle(
   const attackers = heroes.map((h) => ({ ...h }));
   const room = defenders.map((d) => ({ ...d }));
   const log: RaidLogEntry[] = [];
-  const effect: EffectState = { stunned: new Set(), shielded: new Map() };
-  const weak = attackers.filter((a) => a.hp > 0 && (a.weakened ?? 0) > 0);
+  const report = new Map<string, RaidBattleUnitReport>();
+  for (const a of attackers) if (a.hp > 0) report.set(a.id, unitReport(a, "hero"));
+  for (const d of room) if (d.hp > 0) report.set(d.id, unitReport(d, "enemy"));
+  const effect: EffectState = { stunned: new Set(), shielded: new Map(), report, round: 0, side: "hero" };
+
+  const living = attackers.filter((a) => a.hp > 0);
+  log.push({
+    roomKey,
+    kind: "info",
+    round: 0,
+    message: `Combat engagé : ${living.map((a) => a.name).join(", ")} contre ${room.map((d) => d.name).join(", ")}.`,
+  });
+  const weak = living.filter((a) => (a.weakened ?? 0) > 0);
   if (weak.length > 0) {
+    const pct = Math.round(WEAKEN_PER_STACK * 100);
     log.push({
       roomKey,
       kind: "info",
-      message: `Encore sonnés par les pièges, ${weak.map((a) => `${a.name} (×${a.weakened})`).join(", ")} combat${weak.length > 1 ? "tent" : ""} affaibli${weak.length > 1 ? "s" : ""}.`,
+      round: 0,
+      message: `Encore sonnés par les pièges, ${weak.map((a) => `${a.name} (×${a.weakened})`).join(", ")} combat${weak.length > 1 ? "tent" : ""} affaibli${weak.length > 1 ? "s" : ""} : −${pct} % de dégâts infligés et +${pct} % de dégâts subis par cumul.`,
     });
   }
 
@@ -275,20 +393,33 @@ export function resolveRoomBattle(
     room.some((d) => d.hp > 0) &&
     round <= MAX_ROUNDS
   ) {
+    effect.round = round;
+    effect.side = "hero";
     runSide(rng, roomKey, attackers, room, log, effect);
     if (room.every((d) => d.hp <= 0)) break;
+    effect.side = "enemy";
     runSide(rng, roomKey, room, attackers, log, effect);
     round += 1;
   }
 
   const cleared = room.every((d) => d.hp <= 0) && attackers.some((a) => a.hp > 0);
-  if (!cleared && attackers.some((a) => a.hp > 0)) {
-    log.push({
-      roomKey,
-      kind: "info",
-      message: "Le combat s'éternise : épuisés, vos héros finissent submergés.",
-    });
+  const timedOut = !cleared && attackers.some((a) => a.hp > 0);
+  const rounds = Math.min(round, MAX_ROUNDS);
+  for (const u of [...attackers, ...room]) {
+    const r = report.get(u.id);
+    if (r) r.hpEnd = u.hp;
   }
+  log.push({
+    roomKey,
+    kind: "info",
+    round: rounds,
+    message: cleared
+      ? `Salle nettoyée en ${rounds} tour${rounds > 1 ? "s" : ""}.`
+      : timedOut
+        ? `Le combat s'éternise (${MAX_ROUNDS} tours) : épuisés, vos héros finissent submergés.`
+        : `Votre équipe tombe au tour ${rounds}.`,
+    report: { outcome: cleared ? "cleared" : "wiped", rounds, timedOut, units: [...report.values()] },
+  });
   for (const a of attackers) a.weakened = 0;
   return {
     outcome: cleared ? "cleared" : "wiped",

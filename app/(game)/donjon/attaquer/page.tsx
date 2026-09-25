@@ -17,6 +17,7 @@ import { Spinner } from "@/components/Spinner";
 import { Badge } from "@/components/Badge";
 import { Chip } from "@/components/Chip";
 import { PageTransition } from "@/components/PageTransition";
+import { EmptyState } from "@/components/EmptyState";
 import type { DungeonTarget } from "@/app/api/dungeon/targets/route";
 import type { Element, RaidView } from "@/types/game";
 
@@ -61,7 +62,7 @@ function IntelLine({ target }: { target: DungeonTarget }) {
 }
 
 export default function AttaquerPage() {
-  const { heroes, items, profile } = useGameData();
+  const { heroes, items, profile, dungeon } = useGameData();
   const router = useRouter();
   const [targets, setTargets] = useState<DungeonTarget[]>([]);
   const [myLevel, setMyLevel] = useState(1);
@@ -165,6 +166,19 @@ export default function AttaquerPage() {
     return (
       <PageTransition>
         <Spinner label="Vérification d'un raid en cours..." />
+      </PageTransition>
+    );
+
+  // Attacking requires having built one's own dungeon (same rule as /api/dungeon/raid/start). A missing
+  // doc may just not have arrived yet: the server check covers it.
+  if (dungeon && dungeon.treasureRoomCount < 1)
+    return (
+      <PageTransition>
+        <EmptyState
+          message="Pour attaquer un donjon, construisez d'abord le vôtre : placez au moins une salle au trésor et enregistrez-le."
+          backHref="/donjon"
+          backLabel="Construire mon donjon"
+        />
       </PageTransition>
     );
 

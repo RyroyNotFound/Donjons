@@ -245,6 +245,11 @@ export interface MonsterDefinition {
   stats: HeroStats;
   /** Element of this monster's attacks. Undefined = neutral. */
   element?: Element;
+  /** Raid-combat role: TANK draws most of the heroes' hits, HEAL (with raidEffectTag "heal") mends
+   *  its allies each round instead of attacking. Undefined = plain attacker. Arena ignores it. */
+  role?: Role;
+  /** Raid-combat effect, same rules as a hero's spell (base magnitude). Undefined = none. */
+  raidEffectTag?: RaidEffectTag;
 }
 
 export type DungeonUpgradeTrackId =
@@ -304,7 +309,7 @@ export interface DungeonOccupant {
   defPhys: number;
   defMag: number;
   spd: number;
-  /** Always undefined for monsters — only garrison heroes carry an equipped spell's raid effect. */
+  /** A garrison hero's equipped spell effect, or a monster's own (MonsterDefinition.raidEffectTag). */
   raidEffectTag?: RaidEffectTag;
   raidEffectBonus?: boolean;
   crit?: number;
@@ -328,6 +333,52 @@ export interface RaidLogEntry {
   actorId?: string;
   targetId?: string;
   hpAfter?: number;
+  /** Room fights only: 0 = the fight's opening line, 1.. = the round the action happened in. */
+  round?: number;
+  /** Room fights only: which camp the acting unit belongs to. */
+  side?: "hero" | "enemy";
+  /** Short name of the spell effect that fired on this action ("Perce-défense", "Étourdissement"...). */
+  effect?: string;
+  crit?: boolean;
+  /** Set on a fight's last entry: who did what, for the post-fight breakdown. Absent on older raids. */
+  report?: RaidBattleReport;
+}
+
+/** One combatant's line in a room fight's breakdown. */
+export interface RaidBattleUnitReport {
+  id: string;
+  name: string;
+  side: "hero" | "enemy";
+  role?: Role;
+  maxHp: number;
+  hpStart: number;
+  hpEnd: number;
+  atk: number;
+  atkType: "phys" | "mag";
+  defPhys: number;
+  defMag: number;
+  element?: Element;
+  raidEffectTag?: RaidEffectTag;
+  raidEffectBonus?: boolean;
+  /** Weakened stacks carried into the fight (heroes only). */
+  weakened?: number;
+  dealt: number;
+  taken: number;
+  healed: number;
+  /** Damage this unit's hits lost to the target's defense. */
+  lostToDefense: number;
+  /** Damage this unit's hits dealt before defense (after variance/effects). */
+  rawDealt: number;
+  hits: number;
+  crits: number;
+}
+
+export interface RaidBattleReport {
+  outcome: "cleared" | "wiped";
+  rounds: number;
+  /** The fight hit MAX_ROUNDS: the party is overwhelmed even with heroes standing. */
+  timedOut: boolean;
+  units: RaidBattleUnitReport[];
 }
 
 /**
@@ -400,6 +451,17 @@ export interface RaidView {
   crystalsEarned?: number;
   /** Set on the response of the move that conquered the dungeon (see rollConquestBounty). */
   bounty?: { gold: number; forgeShards: number; item: Pick<Item, "name" | "rarity" | "slot" | "tier"> };
+  /** Adventure mode: the stage being played (absent on raids against players/bots). */
+  adventureStageId?: string;
+  /** Set on the move that cleared an adventure stage for the first time: its one-time reward. */
+  adventureReward?: {
+    gold: number;
+    crystals: number;
+    stardust: number;
+    rankTokens: number;
+    forgeShards: number;
+    item: Pick<Item, "name" | "rarity" | "slot" | "tier">;
+  };
 }
 
 export interface ZoneLootTable {
@@ -578,6 +640,8 @@ export interface UserProfile {
   /** Gacha by-product (every pull gives some), spent at the Observatoire to pick a specific
    *  spell/talent/mastery/class or rank one up (see lib/game/content/observatory.ts). Absent = 0. */
   stardust?: number;
+  /** Adventure stage id -> time of its first victory (one-time reward paid). Absent = none cleared. */
+  adventureCleared?: Record<string, number>;
   /** Bot dungeon id -> victories, for the first-win crystal bonus. Absent = none yet. */
   botDungeonWins?: Record<string, number>;
   /** Record key (see recordKey in lib/game/content/difficulties.ts: the zone id for normal,

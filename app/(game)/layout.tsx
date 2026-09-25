@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Aventure",
     links: [
+      { href: "/aventure", label: "Mode aventure", icon: "🧭" },
       { href: "/expeditions", label: "Expéditions", icon: "🗺️", iconName: "scroll" },
       { href: "/taverne", label: "Taverne", icon: "🍺" },
       { href: "/velours", label: "Velours Noir", icon: "🍸" },

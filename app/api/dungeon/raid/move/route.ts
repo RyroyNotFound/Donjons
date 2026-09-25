@@ -26,6 +26,7 @@ export const POST = withAuth(async (uid, request) => {
 
   const payout = await commitRaidStep(raidRef, raid, nextRaid);
   const bounty = payout?.bounty;
+  const adventure = payout?.adventure;
 
   return NextResponse.json({
     ...toRaidView(nextRaid, newLog),
@@ -34,6 +35,14 @@ export const POST = withAuth(async (uid, request) => {
       gold: bounty.gold,
       forgeShards: bounty.forgeShards,
       item: { name: bounty.item.name, rarity: bounty.item.rarity, slot: bounty.item.slot, tier: bounty.item.tier },
+    },
+    adventureReward: adventure && {
+      gold: adventure.reward.gold,
+      crystals: adventure.reward.crystals,
+      stardust: adventure.reward.stardust,
+      rankTokens: adventure.reward.rankTokens,
+      forgeShards: adventure.reward.forgeShards,
+      item: { name: adventure.item.name, rarity: adventure.item.rarity, slot: adventure.item.slot, tier: adventure.item.tier },
     },
   });
 });

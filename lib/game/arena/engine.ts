@@ -105,7 +105,52 @@ const NOVA_SLOW = 0.55;
 const BARRIER_CAP = 0.35;
 
 /** Spell matching the hero's class hits harder (same idea as raid combat's RAID_MAGNITUDE bonus). */
-const CLASS_MATCH_BONUS = 1.3;
+export const CLASS_MATCH_BONUS = 1.3;
+
+/** Per-cast numbers behind each tag (castSpell reads them): multiples of the caster's attack, plus
+ *  flat parts for heals/shields and ratios for team buffs. Also drives the hero screen's spell values. */
+export const ARENA_SPELL_NUMBERS = {
+  cleave: { atk: 1.4 },
+  multishot: { atk: 0.7, projectiles: 8 },
+  regen: { atk: 0.5, flat: 6 },
+  haste: { ratio: 0.4, duration: 3.5 },
+  dmgbuff: { ratio: 0.3, duration: 4 },
+  lifesteal: { atk: 1.6, heal: 0.5 },
+  nova: { atk: 0.9, duration: 2.5 },
+  chain: { atk: 1.2, bounces: 5, falloff: 0.85 },
+  meteor: { atk: 2 },
+  barrier: { atk: 0.3, flat: 5, maxHp: 0.12 },
+  venom: { atk: 0.55, duration: 4 },
+  execute: { atk: 1.5, threshold: 0.35, finisher: 2 },
+} as const;
+
+/** Spell power multiplier: class match bonus x gacha rank scaling. */
+export function arenaSpellPower(spell: { classId?: string }, heroClassId: string | undefined, rank: number): number {
+  const classBonus = spell.classId && spell.classId === heroClassId ? CLASS_MATCH_BONUS : 1;
+  return classBonus * componentRankMultiplier(rank);
+}
+
+/** What one cast of `tag` does for a hero with this attack / max HP and spell power, before the
+ *  target's defense and run upgrades — e.g. "56 dégâts à chaque ennemi proche". */
+export function describeArenaSpellValue(tag: ArenaAbilityTag, atk: number, maxHp: number, power: number): string {
+  const n = (ratio: number) => Math.round(atk * ratio * power);
+  const pct = (ratio: number) => `${Math.round(ratio * power * 100)} %`;
+  const N = ARENA_SPELL_NUMBERS;
+  switch (tag) {
+    case "cleave": return `${n(N.cleave.atk)} dégâts à chaque ennemi proche`;
+    case "multishot": return `${N.multishot.projectiles} projectiles de ${n(N.multishot.atk)} dégâts`;
+    case "regen": return `+${Math.round((N.regen.flat + atk * N.regen.atk) * power)} PV à chaque héros`;
+    case "haste": return `+${pct(N.haste.ratio)} vitesse d'attaque d'équipe (${String(N.haste.duration).replace(".", ",")} s)`;
+    case "dmgbuff": return `+${pct(N.dmgbuff.ratio)} dégâts d'équipe (${N.dmgbuff.duration} s)`;
+    case "lifesteal": return `${n(N.lifesteal.atk)} dégâts, rend ${Math.round(N.lifesteal.heal * 100)} % en PV`;
+    case "nova": return `${n(N.nova.atk)} dégâts de zone + ralentissement`;
+    case "chain": return `${n(N.chain.atk)} dégâts, ${N.chain.bounces} cibles (−${Math.round((1 - N.chain.falloff) * 100)} % par rebond)`;
+    case "meteor": return `${n(N.meteor.atk)} dégâts de zone`;
+    case "barrier": return `bouclier de ${Math.round((N.barrier.flat + maxHp * N.barrier.maxHp + atk * N.barrier.atk) * power)} PV par héros`;
+    case "venom": return `${n(N.venom.atk)} dégâts/s pendant ${N.venom.duration} s`;
+    case "execute": return `${n(N.execute.atk)} dégâts (${n(N.execute.atk * N.execute.finisher)} sous ${Math.round(N.execute.threshold * 100)} % PV)`;
+  }
+}
 
 export interface ArenaSpell {
   spellId: string;
@@ -124,6 +169,20 @@ const MONSTER_BEHAVIOR: Record<string, Behavior> = {
   "golem-de-pierre": "brute",
   "araignee-venimeuse": "ranged",
   "seigneur-des-ombres": "caster",
+  squelette: "swarm",
+  "orc-pillard": "swarm",
+  "orc-cuirasse": "brute",
+  "spectre-pourpre": "caster",
+  "ondin-eclaireur": "swarm",
+  "ondin-harponneur": "ranged",
+  "ondin-aquamancien": "caster",
+  "ondin-mystique": "ranged",
+  "ondin-empaleur": "brute",
+  "elfe-archere": "ranged",
+  "elfe-enchanteresse": "caster",
+  "elfe-lame-dansante": "swarm",
+  "seigneur-elfe": "brute",
+  "chapardeur-halfelin": "swarm",
 };
 
 const BEHAVIOR_TWEAKS: Record<Behavior, { hp: number; speed: number; radius: number }> = {
@@ -310,12 +369,11 @@ export function createInitialState(
     input.equippedSpellIds.slice(0, SPELL_SLOTS).forEach((spellId, i) => {
       const spell = tryGetSpell(spellId);
       if (!spell) return;
-      const classBonus = spell.classId && spell.classId === input.classId ? CLASS_MATCH_BONUS : 1;
       spells.push({
         spellId,
         name: spell.name,
         tag: spell.arenaAbilityTag,
-        power: classBonus * componentRankMultiplier(componentRanks[spellId] ?? 1),
+        power: arenaSpellPower(spell, input.classId, componentRanks[spellId] ?? 1),
         // Staggered first casts so a 4-spell hero doesn't fire everything at once.
         timer: 1 + i * 0.8 + slot * 0.3,
       });
@@ -771,16 +829,16 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       const radius = 85 * (1 + 0.25 * lvl);
       const targets = state.enemies.filter((e) => Math.hypot(e.x - hero.x, e.y - hero.y) - e.radius <= radius);
       if (targets.length === 0) return false;
-      for (const enemy of targets) damageEnemy(state, enemy, hero.atk * 1.4 * power, hero.atkType, rng, hero);
+      for (const enemy of targets) damageEnemy(state, enemy, hero.atk * ARENA_SPELL_NUMBERS.cleave.atk * power, hero.atkType, rng, hero);
       addEffect(state, { kind: "ring", x: hero.x, y: hero.y, radius, life: 0.35, color: "#fb923c" });
       return true;
     }
     case "multishot": {
       if (!nearestEnemy(state, hero.x, hero.y, 320)) return false;
-      const count = 8 + 3 * lvl;
+      const count = ARENA_SPELL_NUMBERS.multishot.projectiles + 3 * lvl;
       for (let i = 0; i < count; i++) {
         fireProjectile(state, hero, (i / count) * Math.PI * 2, {
-          damage: hero.atk * 0.7 * power,
+          damage: hero.atk * ARENA_SPELL_NUMBERS.multishot.atk * power,
           atkType: hero.atkType,
           hostile: false,
           speed: 380,
@@ -798,30 +856,30 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       const party = aliveHeroes(state);
       if (!party.some((h) => h.hp / h.maxHp < 0.95)) return false;
       for (const h of party) {
-        healHero(state, h, (6 + hero.atk * 0.5) * power);
+        healHero(state, h, (ARENA_SPELL_NUMBERS.regen.flat + hero.atk * ARENA_SPELL_NUMBERS.regen.atk) * power);
         addEffect(state, { kind: "ring", x: h.x, y: h.y, radius: 20, life: 0.4, color: "#6ee7b7" });
       }
       return true;
     }
     case "haste": {
       if (state.enemies.length === 0) return false;
-      state.buffs.hasteTimer = 3.5 + 1.5 * lvl;
-      state.buffs.hasteMag = Math.max(state.buffs.hasteMag, 0.4 * power);
+      state.buffs.hasteTimer = ARENA_SPELL_NUMBERS.haste.duration + 1.5 * lvl;
+      state.buffs.hasteMag = Math.max(state.buffs.hasteMag, ARENA_SPELL_NUMBERS.haste.ratio * power);
       addEffect(state, { kind: "ring", x: hero.x, y: hero.y, radius: 50, life: 0.4, color: "#67e8f9" });
       return true;
     }
     case "dmgbuff": {
       if (state.enemies.length === 0) return false;
-      state.buffs.dmgTimer = 4 + 1.5 * lvl;
-      state.buffs.dmgMag = Math.max(state.buffs.dmgMag, 0.3 * power);
+      state.buffs.dmgTimer = ARENA_SPELL_NUMBERS.dmgbuff.duration + 1.5 * lvl;
+      state.buffs.dmgMag = Math.max(state.buffs.dmgMag, ARENA_SPELL_NUMBERS.dmgbuff.ratio * power);
       addEffect(state, { kind: "ring", x: hero.x, y: hero.y, radius: 60, life: 0.4, color: "#fcd34d" });
       return true;
     }
     case "lifesteal": {
       const target = nearestEnemy(state, hero.x, hero.y, 220);
       if (!target) return false;
-      const dealt = damageEnemy(state, target, hero.atk * 1.6 * power, hero.atkType, rng, hero);
-      healHero(state, hero, dealt * (0.5 + 0.2 * lvl));
+      const dealt = damageEnemy(state, target, hero.atk * ARENA_SPELL_NUMBERS.lifesteal.atk * power, hero.atkType, rng, hero);
+      healHero(state, hero, dealt * (ARENA_SPELL_NUMBERS.lifesteal.heal + 0.2 * lvl));
       addEffect(state, { kind: "beam", x: hero.x, y: hero.y, x2: target.x, y2: target.y, radius: 0, life: 0.3, color: "#f87171" });
       return true;
     }
@@ -830,8 +888,8 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       const targets = state.enemies.filter((e) => Math.hypot(e.x - hero.x, e.y - hero.y) - e.radius <= radius);
       if (targets.length === 0) return false;
       for (const enemy of targets) {
-        damageEnemy(state, enemy, hero.atk * 0.9 * power, hero.atkType, rng, hero);
-        enemy.slowTimer = 2.5 + lvl;
+        damageEnemy(state, enemy, hero.atk * ARENA_SPELL_NUMBERS.nova.atk * power, hero.atkType, rng, hero);
+        enemy.slowTimer = ARENA_SPELL_NUMBERS.nova.duration + lvl;
       }
       addEffect(state, { kind: "ring", x: hero.x, y: hero.y, radius, life: 0.45, color: "#7dd3fc" });
       return true;
@@ -841,13 +899,13 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       if (!current) return false;
       const hit = new Set<number>();
       let from = { x: hero.x, y: hero.y };
-      let damage = hero.atk * 1.2 * power;
-      for (let bounce = 0; bounce < 5 + 2 * lvl && current; bounce++) {
+      let damage = hero.atk * ARENA_SPELL_NUMBERS.chain.atk * power;
+      for (let bounce = 0; bounce < ARENA_SPELL_NUMBERS.chain.bounces + 2 * lvl && current; bounce++) {
         damageEnemy(state, current, damage, hero.atkType, rng, hero);
         hit.add(current.id);
         addEffect(state, { kind: "beam", x: from.x, y: from.y, x2: current.x, y2: current.y, radius: 0, life: 0.25, color: "#fde047" });
         from = { x: current.x, y: current.y };
-        damage *= 0.85;
+        damage *= ARENA_SPELL_NUMBERS.chain.falloff;
         let next: ArenaEnemy | undefined;
         let best = 150;
         for (const e of state.enemies) {
@@ -878,7 +936,7 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       const { x, y } = center;
       for (const enemy of state.enemies) {
         if (Math.hypot(enemy.x - x, enemy.y - y) - enemy.radius <= blast) {
-          damageEnemy(state, enemy, hero.atk * 2 * power, hero.atkType, rng, hero);
+          damageEnemy(state, enemy, hero.atk * ARENA_SPELL_NUMBERS.meteor.atk * power, hero.atkType, rng, hero);
         }
       }
       addEffect(state, { kind: "ring", x, y, radius: blast, life: 0.5, color: "#f97316" });
@@ -890,7 +948,7 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       const cap = BARRIER_CAP + 0.1 * lvl;
       if (party.every((h) => h.shield >= h.maxHp * cap * 0.9)) return false;
       for (const h of party) {
-        h.shield = Math.min(h.maxHp * cap, h.shield + (5 + h.maxHp * 0.12 + hero.atk * 0.3) * power);
+        h.shield = Math.min(h.maxHp * cap, h.shield + (ARENA_SPELL_NUMBERS.barrier.flat + h.maxHp * ARENA_SPELL_NUMBERS.barrier.maxHp + hero.atk * ARENA_SPELL_NUMBERS.barrier.atk) * power);
         addEffect(state, { kind: "ring", x: h.x, y: h.y, radius: 22, life: 0.4, color: "#93c5fd" });
       }
       return true;
@@ -899,12 +957,12 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
       const target = nearestEnemy(state, hero.x, hero.y, 300);
       if (!target) return false;
       const radius = 90;
-      const dps = hero.atk * 0.55 * power * state.mods.dmgMul;
+      const dps = hero.atk * ARENA_SPELL_NUMBERS.venom.atk * power * state.mods.dmgMul;
       for (const enemy of state.enemies) {
         if (Math.hypot(enemy.x - target.x, enemy.y - target.y) > radius) continue;
         const elemMul = hero.element ? elementalMultiplier(hero.element, enemy.res[hero.element]) : 1;
         enemy.poisonDps = Math.max(enemy.poisonTimer > 0 ? enemy.poisonDps : 0, dps * elemMul);
-        enemy.poisonTimer = 4 + 2 * lvl;
+        enemy.poisonTimer = ARENA_SPELL_NUMBERS.venom.duration + 2 * lvl;
       }
       addEffect(state, { kind: "ring", x: target.x, y: target.y, radius, life: 0.6, color: "#a3e635" });
       return true;
@@ -916,8 +974,8 @@ function castSpell(state: ArenaState, hero: ArenaHero, spell: ArenaSpell, rng: (
         if (!target || e.hp / e.maxHp < target.hp / target.maxHp) target = e;
       }
       if (!target) return false;
-      const finisher = target.hp / target.maxHp < 0.35 + 0.1 * lvl ? 2 : 1;
-      damageEnemy(state, target, hero.atk * 1.5 * finisher * power, hero.atkType, rng, hero);
+      const finisher = target.hp / target.maxHp < ARENA_SPELL_NUMBERS.execute.threshold + 0.1 * lvl ? ARENA_SPELL_NUMBERS.execute.finisher : 1;
+      damageEnemy(state, target, hero.atk * ARENA_SPELL_NUMBERS.execute.atk * finisher * power, hero.atkType, rng, hero);
       addEffect(state, { kind: "beam", x: hero.x, y: hero.y, x2: target.x, y2: target.y, radius: 0, life: 0.25, color: "#e2e8f0" });
       return true;
     }

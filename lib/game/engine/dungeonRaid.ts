@@ -12,6 +12,7 @@ import { partyDisarm, resolveMarchHeal, resolveRoomBattle, resolveTrapTrigger } 
 import { ELEMENTS, resistancesOf } from "@/lib/game/engine/elements";
 import { ENTRANCE_CELL, MAX_TREASURE_ROOMS } from "@/lib/game/content/dungeon";
 import { isBotDefenderId } from "@/lib/game/content/botDungeons";
+import { ADVENTURE_PREFIX, isAdventureDefenderId } from "@/lib/game/content/adventure";
 import { treasureRoomBonus } from "@/lib/game/engine/loot";
 import { isAdjacent, neighborsOf, roomKey, type Cell } from "@/lib/game/engine/dungeonLayout";
 import type {
@@ -143,6 +144,8 @@ export function buildDefenderSnapshot(
           // The index keeps two copies of the same monster apart (cleave splash, stun, shield).
           id: `${key}:${index}:${refId}`,
           name: definition.name,
+          role: definition.role,
+          raidEffectTag: definition.raidEffectTag,
           maxHp: Math.round(definition.stats.hp * multiplier),
           hp: Math.round(definition.stats.hp * multiplier),
           atkPhys: Math.round(definition.stats.atkPhys * multiplier),
@@ -234,13 +237,15 @@ export function applyMove(raid: DungeonRaid, target: Cell, rng: () => number): M
     // more treasure rooms = more loot, but no single room is worth the whole pool. A real
     // player's rooms also hold a created treasure, never debited from them.
     bankedLoot = addReward(bankedLoot, shareOfReward(raid.totalLootPool, MAX_TREASURE_ROOMS));
-    if (!isBotDefenderId(raid.defenderId)) {
+    if (!isBotDefenderId(raid.defenderId) && !isAdventureDefenderId(raid.defenderId)) {
       bankedBonus = addReward(bankedBonus, treasureRoomBonus(raid.defenderSnapshot.defenseLevel ?? 1));
     }
     newLog.push({
       roomKey: targetKey,
       kind: "info",
-      message: "Vous découvrez une salle au trésor et sécurisez son butin !",
+      message: isAdventureDefenderId(raid.defenderId)
+        ? "Vous atteignez le sceau du donjon : la voie vers la suite est ouverte !"
+        : "Vous découvrez une salle au trésor et sécurisez son butin !",
     });
   }
 
@@ -339,5 +344,6 @@ export function toRaidView(raid: DungeonRaid, newLog: RaidLogEntry[] = []): Raid
     treasureRoomsTotal: treasureRoomsTotal(raid),
     bankedLoot: addReward(raid.bankedLoot, raid.bankedBonus ?? EMPTY_REWARD),
     newLog,
+    adventureStageId: isAdventureDefenderId(raid.defenderId) ? raid.defenderId.slice(ADVENTURE_PREFIX.length) : undefined,
   };
 }

@@ -38,9 +38,6 @@ export const POST = withAuth<RouteContext>(async (uid, request, { params }) => {
   const currentRank = hero.talents[nodeId] ?? 0;
   if (currentRank >= node.maxRank) throw new GameError("Rang maximum déjà atteint");
   if (hero.talentPoints < node.cost) throw new GameError("Points de talent insuffisants");
-  if (node.requires && !(hero.talents[node.requires] > 0)) {
-    throw new GameError("Prérequis manquant");
-  }
   if (node.requiresStarRank && (hero.starRank ?? 1) < node.requiresStarRank) {
     throw new GameError(`Nécessite ${node.requiresStarRank}★`);
   }

@@ -123,6 +123,121 @@ export const MONSTERS: MonsterDefinition[] = [
     stats: fullStats({ hp: 90, atkPhys: 9, atkMag: 6, defPhys: 5, defMag: 3, spd: 10, crit: 5, critDmg: 50, resFoudre: 25, resGlace: -40, resFeu: 10 }),
     element: "foudre",
   },
+  {
+    id: "squelette",
+    name: "Squelette",
+    description: "Un mort-vivant de base : faible seul, pénible en nombre.",
+    cost: 1,
+    // Cheap undead filler: holy shatters it, shadow and frost barely touch it.
+    stats: fullStats({ hp: 45, atkPhys: 8, defPhys: 4, defMag: 4, spd: 8, critDmg: 50, resSacre: -50, resFeu: -10, resOmbre: 30, resGlace: 20 }),
+  },
+  {
+    id: "orc-pillard",
+    name: "Orc pillard",
+    description: "Frappe vite et fort, cherche les failles — mais ne porte presque rien.",
+    cost: 3,
+    // Glass cannon: fast, crits often; any hit hurts it. Freezes badly.
+    stats: fullStats({ hp: 55, atkPhys: 14, defPhys: 2, defMag: 2, spd: 16, crit: 25, critDmg: 70, resGlace: -30, resFeu: -20, resOmbre: 15 }),
+  },
+  {
+    id: "orc-cuirasse",
+    name: "Orc cuirassé",
+    description: "Une montagne de fer : les coups physiques glissent dessus, la magie et la foudre le percent.",
+    cost: 4,
+    // Physical wall: huge defPhys, almost no defMag — a team that only hits physically stalls on it.
+    stats: fullStats({ hp: 150, atkPhys: 11, defPhys: 15, defMag: 2, spd: 5, critDmg: 50, resFoudre: -40, resFeu: 10, resGlace: 10 }),
+  },
+  {
+    id: "spectre-pourpre",
+    name: "Spectre pourpre",
+    description: "Un assassin mort-vivant qui frappe en magie d'ombre, fragile face aux sorts.",
+    cost: 4,
+    // Shadow caster: magical hits (defMag matters), sturdy vs physical, weak to holy.
+    stats: fullStats({ hp: 70, atkPhys: 2, atkMag: 15, defPhys: 10, defMag: 2, spd: 13, crit: 15, critDmg: 60, resSacre: -40, resFeu: -15, resOmbre: 40 }),
+    element: "ombre",
+  },
+  // --- Ondins: creatures of the flooded depths. Frost attacks, and water conducts lightning.
+  {
+    id: "ondin-eclaireur",
+    name: "Ondin éclaireur",
+    description: "Le plus commun des ondins : rapide, frappe au givre.",
+    cost: 2,
+    stats: fullStats({ hp: 65, atkPhys: 11, defPhys: 4, defMag: 4, spd: 13, crit: 8, critDmg: 50, resGlace: 25, resFoudre: -40, resFeu: 15 }),
+    element: "glace",
+  },
+  {
+    id: "ondin-harponneur",
+    name: "Ondin harponneur",
+    description: "Son harpon traverse les armures (perce-défense).",
+    cost: 3,
+    stats: fullStats({ hp: 70, atkPhys: 13, defPhys: 5, defMag: 3, spd: 11, crit: 10, critDmg: 60, resGlace: 25, resFoudre: -40 }),
+    raidEffectTag: "pierce",
+  },
+  {
+    id: "ondin-aquamancien",
+    name: "Ondin aquamancien",
+    description: "Mage des profondeurs : ses vagues de givre éclaboussent un second héros.",
+    cost: 4,
+    stats: fullStats({ hp: 70, atkMag: 15, defPhys: 3, defMag: 9, spd: 10, critDmg: 50, resGlace: 30, resFoudre: -40, resFeu: 10 }),
+    element: "glace",
+    raidEffectTag: "cleave",
+  },
+  {
+    id: "ondin-mystique",
+    name: "Ondin mystique",
+    description: "Soigneur : chaque tour, il referme les plaies de l'ondin le plus blessé. À abattre en premier.",
+    cost: 4,
+    stats: fullStats({ hp: 80, atkMag: 10, defPhys: 4, defMag: 8, spd: 9, critDmg: 50, resGlace: 25, resFoudre: -40 }),
+    element: "glace",
+    role: "HEAL",
+    raidEffectTag: "heal",
+  },
+  {
+    id: "ondin-empaleur",
+    name: "Ondin empaleur",
+    description: "Tank : attire la plupart des coups et se protège avant d'embrocher.",
+    cost: 4,
+    stats: fullStats({ hp: 170, atkPhys: 10, defPhys: 14, defMag: 8, spd: 6, critDmg: 50, resGlace: 20, resFoudre: -40 }),
+    role: "TANK",
+    raidEffectTag: "shield",
+  },
+  // --- Elfes déchus: holy light turned cruel. They shrug off holy damage, shadow undoes them.
+  {
+    id: "elfe-archere",
+    name: "Archère elfe",
+    description: "Tireuse d'élite : ses flèches achèvent les héros affaiblis (exécution).",
+    cost: 3,
+    stats: fullStats({ hp: 60, atkPhys: 14, defPhys: 3, defMag: 5, spd: 15, crit: 20, critDmg: 60, resOmbre: -40, resSacre: 25 }),
+    raidEffectTag: "execute",
+  },
+  {
+    id: "elfe-enchanteresse",
+    name: "Enchanteresse elfe",
+    description: "Soigneuse de lumière : garde ses alliés debout tant qu'elle vit.",
+    cost: 4,
+    stats: fullStats({ hp: 75, atkMag: 12, defPhys: 3, defMag: 10, spd: 10, critDmg: 50, resOmbre: -40, resSacre: 30 }),
+    element: "sacre",
+    role: "HEAL",
+    raidEffectTag: "heal",
+  },
+  {
+    id: "elfe-lame-dansante",
+    name: "Lame dansante elfe",
+    description: "Virevolte et se régénère à chaque coup porté (vol de vie).",
+    cost: 4,
+    stats: fullStats({ hp: 85, atkPhys: 13, defPhys: 6, defMag: 6, spd: 17, crit: 15, critDmg: 60, resOmbre: -40, resSacre: 20 }),
+    element: "sacre",
+    raidEffectTag: "lifesteal",
+  },
+  // --- Halfelins.
+  {
+    id: "chapardeur-halfelin",
+    name: "Chapardeur halfelin",
+    description: "Petit, vif et insaisissable : se met à couvert avant chaque attaque (bouclier).",
+    cost: 2,
+    stats: fullStats({ hp: 50, atkPhys: 9, defPhys: 6, defMag: 6, spd: 18, crit: 20, critDmg: 50, resGlace: -30, resFeu: 10, resOmbre: 10 }),
+    raidEffectTag: "shield",
+  },
 ];
 
 export const BOSSES: MonsterDefinition[] = [
@@ -135,6 +250,18 @@ export const BOSSES: MonsterDefinition[] = [
     // Shadow lich: casts shadow, immune-ish to it, weak to holy and fire.
     stats: fullStats({ hp: 260, atkPhys: 8, atkMag: 16, defPhys: 8, defMag: 12, spd: 9, crit: 10, critDmg: 50, resOmbre: 35, resGlace: 15, resSacre: -40, resFeu: -20 }),
     element: "ombre",
+  },
+  {
+    id: "seigneur-elfe",
+    name: "Seigneur elfe",
+    description: "Le souverain des elfes déchus : un tank sacré qui étourdit ceux qu'il frappe.",
+    cost: 8,
+    isBoss: true,
+    // Holy warlord: draws the hits, stuns; shadow undoes him.
+    stats: fullStats({ hp: 300, atkPhys: 17, defPhys: 14, defMag: 10, spd: 10, crit: 10, critDmg: 60, resSacre: 35, resGlace: 10, resOmbre: -40, resFoudre: -15 }),
+    element: "sacre",
+    role: "TANK",
+    raidEffectTag: "stun",
   },
 ];
 

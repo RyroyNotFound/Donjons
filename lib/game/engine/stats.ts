@@ -124,12 +124,13 @@ export function equippedItemsOf(hero: Hero, items: Item[]): Item[] {
 
 /** Single "power" number for a hero's resolved stats — compared against ZoneDefinition.recommendedPower.
  *  Crits count through the expected damage they add; resistances count lightly (they only help
- *  against the matching element). */
+ *  against the matching element). Only the attack the hero actually fights with counts (the higher of
+ *  atkPhys/atkMag), so the hero screen's "▲ +N" never rewards a stat that does nothing. */
 export function heroPower(stats: HeroStats): number {
   const bestAtk = Math.max(stats.atkPhys, stats.atkMag);
   const critBonus = bestAtk * critChance(stats.crit) * (critMultiplier(stats.critDmg) - 1);
   const resTotal = PERCENT_STAT_KEYS.filter((k) => k.startsWith("res")).reduce((sum, k) => sum + Math.max(0, stats[k] ?? 0), 0);
   return Math.round(
-    stats.atkPhys + stats.atkMag + stats.defPhys + stats.defMag + stats.hp / 10 + stats.spd + critBonus + resTotal / 5,
+    bestAtk + stats.defPhys + stats.defMag + stats.hp / 10 + stats.spd + critBonus + resTotal / 5,
   );
 }
