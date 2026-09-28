@@ -1,22 +1,33 @@
 @import "tailwindcss";
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+/* ─────────────────────────────────────────────────────────────────────────────
+   Design tokens
+   Warm-neutral "obsidian" surfaces, one gold accent, rarity colors kept for
+   game meaning. Exposed to Tailwind as utilities: bg-canvas, bg-surface,
+   bg-surface-2, bg-surface-3, border-line, border-line-strong, text-fg,
+   text-fg-muted, text-fg-subtle, text-fg-faint, text-gold, bg-gold, …
+   ───────────────────────────────────────────────────────────────────────────── */
+@theme static {
+  --color-canvas: oklch(0.155 0.005 65);
+  --color-surface: oklch(0.19 0.006 65);
+  --color-surface-2: oklch(0.225 0.007 65);
+  --color-surface-3: oklch(0.265 0.008 65);
+  --color-line: oklch(0.96 0.02 80 / 0.08);
+  --color-line-strong: oklch(0.96 0.02 80 / 0.14);
 
-  /* Top-layer view-transition pseudo-elements aren't reached by the `*` rule above. */
-  ::view-transition-old(*),
-  ::view-transition-new(*),
-  ::view-transition-group(*) {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
-  }
+  --color-fg: oklch(0.955 0.008 80);
+  --color-fg-muted: oklch(0.77 0.012 75);
+  --color-fg-subtle: oklch(0.63 0.012 70);
+  --color-fg-faint: oklch(0.48 0.01 70);
+
+  --color-gold: oklch(0.83 0.12 82);
+  --color-gold-bright: oklch(0.88 0.11 88);
+  --color-gold-deep: oklch(0.7 0.13 70);
+
+  /* Strong curves — the built-in CSS easings are too weak for UI. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @theme inline {
@@ -25,66 +36,78 @@
   --font-display: var(--font-cinzel);
 }
 
+/* Legacy aliases (a few game components still read these directly). */
 :root {
-  --ink-950: #0a0712;
-  --ink-900: #120c1f;
-  --ink-800: #191129;
-  --ink-700: #241a3a;
+  --ink-950: var(--color-canvas);
+  --ink-900: var(--color-surface);
+  --ink-800: var(--color-surface-2);
+  --ink-700: var(--color-surface-3);
+  --tabbar-h: 3.75rem;
+  color-scheme: dark;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base — including the mobile baseline (no tap flash, no input zoom,
+   instant taps, controls that don't text-select on long-press).
+   ───────────────────────────────────────────────────────────────────────────── */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  background-color: var(--color-canvas);
 }
 
 body {
-  position: relative;
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-  background-color: var(--ink-950);
-  background-image:
-    radial-gradient(ellipse 140% 100% at 50% 50%, transparent 45%, rgba(0, 0, 0, 0.6) 100%),
-    radial-gradient(ellipse 90% 55% at 50% -12%, rgba(139, 92, 246, 0.28), transparent 60%),
-    radial-gradient(ellipse 55% 40% at 95% 5%, rgba(245, 158, 11, 0.10), transparent 60%),
-    radial-gradient(ellipse 60% 45% at -5% 95%, rgba(124, 58, 237, 0.16), transparent 60%),
-    radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: auto, auto, auto, auto, 26px 26px;
-  background-attachment: fixed, fixed, fixed, fixed, fixed;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background-color: var(--color-canvas);
+  /* One quiet, static warm glow at the top — no drifting layers, no grain. */
+  background-image: radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.83 0.12 82 / 0.07), transparent 70%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  overscroll-behavior: none;
+  font-feature-settings: "cv11", "ss01";
 }
 
-/* Fine film-grain overlay for a textured, "engraved" surface rather than
-   flat digital gradients — subtle enough to not affect legibility. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.05;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+::selection {
+  background: oklch(0.83 0.12 82 / 0.3);
+  color: var(--color-fg);
 }
 
-body > * {
-  position: relative;
-  z-index: 1;
+button,
+a,
+summary,
+[role="button"],
+[role="tab"] {
+  touch-action: manipulation;
 }
 
-/* Slow ambient drift layered over the static gradients so the background
-   breathes instead of sitting frozen. Oversized + inset so the transform
-   never reveals an edge. */
-body::after {
-  content: "";
-  position: fixed;
-  inset: -10%;
-  z-index: 0;
-  pointer-events: none;
-  background-image: radial-gradient(ellipse 60% 50% at 30% 30%, rgba(245, 158, 11, 0.1), transparent 65%);
-  animation: drift 32s ease-in-out infinite alternate;
+button,
+summary,
+[role="button"],
+[role="tab"] {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-@keyframes drift {
-  from {
-    transform: translate(-2%, -2%) scale(1);
+/* iOS zooms into inputs under 16px and never zooms back out. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
-  to {
-    transform: translate(2%, 2%) scale(1.05);
-  }
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Utilities
+   ───────────────────────────────────────────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: 0.01em;
 }
 
 .pixel-art {
@@ -92,20 +115,40 @@ body::after {
   image-rendering: crisp-edges;
 }
 
-/* Sprite-sheet frame cycling (components/SpriteAnimation.tsx) — steps() jumps
-   straight between frames instead of tweening, which is what a pixel-art
-   sheet needs. */
-@keyframes sprite-frames {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: calc(-1 * var(--sprite-frame-size) * var(--sprite-frames)) 0;
-  }
+/* Kept for the rare celebratory headline; plain gold, no glow halo. */
+.text-glow-gold {
+  color: var(--color-gold);
 }
 
-/* Subtle stone-dungeon texture, layered like the film grain above (components
-   pass this class alongside their existing bg-[var(--ink-900)]). */
+.text-gold-gradient {
+  background-image: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold-deep));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.panel-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+  overscroll-behavior: contain;
+}
+.panel-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.panel-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Faint pixel-art stone texture (Card's `textured` prop). */
 .bg-dungeon-stone {
   position: relative;
 }
@@ -115,7 +158,7 @@ body::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.12;
+  opacity: 0.05;
   background-image: url("/sprites/tiles/stone-bg.png");
   background-size: 96px 96px;
   background-repeat: repeat;
@@ -126,26 +169,46 @@ body::after {
   z-index: 1;
 }
 
-.font-display {
-  font-family: var(--font-display), Georgia, serif;
+/* Bottom padding that clears the mobile tab bar + home indicator. */
+.pb-tabbar {
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 1.5rem);
+}
+@media (min-width: 1024px) {
+  .pb-tabbar {
+    padding-bottom: 3rem;
+  }
 }
 
-.text-gold-gradient {
-  background-image: linear-gradient(90deg, #fde68a, #f59e0b 45%, #fde68a);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+/* Offset for fixed toasts so they sit above the mobile tab bar. */
+.bottom-toast {
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 0.75rem);
+}
+@media (min-width: 1024px) {
+  .bottom-toast {
+    bottom: 1.5rem;
+  }
 }
 
-.text-glow-gold {
-  color: #fbcf6b;
-  text-shadow: 0 0 18px rgba(245, 158, 11, 0.35), 0 1px 0 rgba(0, 0, 0, 0.4);
+/* ─────────────────────────────────────────────────────────────────────────────
+   Motion
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Sprite-sheet frame cycling (components/SpriteAnimation.tsx) — steps() jumps
+   straight between frames instead of tweening. */
+@keyframes sprite-frames {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: calc(-1 * var(--sprite-frame-size) * var(--sprite-frames)) 0;
+  }
 }
 
+/* Entrance for content blocks; stagger with --delay (30–80ms steps). */
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -155,24 +218,24 @@ body::after {
 
 .animate-rise {
   opacity: 0;
-  animation: rise-in 0.45s ease forwards;
+  animation: rise-in 320ms var(--ease-out) forwards;
   animation-delay: var(--delay, 0s);
 }
 
-/* Floating embers (components/EmberField.tsx) */
+/* Floating embers — only on the rare, first-time screens (auth, onboarding). */
 @keyframes ember-float {
   0% {
-    transform: translateY(0) translateX(0);
+    transform: translate3d(0, 0, 0);
     opacity: 0;
   }
-  10% {
+  15% {
     opacity: var(--ember-opacity, 0.5);
   }
-  90% {
+  85% {
     opacity: var(--ember-opacity, 0.5);
   }
   100% {
-    transform: translateY(-120px) translateX(var(--ember-drift, 10px));
+    transform: translate3d(var(--ember-drift, 10px), -140px, 0);
     opacity: 0;
   }
 }
@@ -183,20 +246,20 @@ body::after {
   width: var(--ember-size, 3px);
   height: var(--ember-size, 3px);
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(253, 230, 138, 0.9), rgba(245, 158, 11, 0.4) 60%, transparent 100%);
-  animation: ember-float var(--ember-duration, 14s) ease-in infinite;
+  background: radial-gradient(circle, oklch(0.9 0.1 88 / 0.9), oklch(0.75 0.14 70 / 0.35) 60%, transparent 100%);
+  animation: ember-float var(--ember-duration, 14s) linear infinite;
   animation-delay: var(--ember-delay, 0s);
 }
 
-/* Resource pill "gain" pulse (components/ResourcePill.tsx) — the value span
-   is keyed on its own value, so React remounting it replays this animation. */
+/* Resource value tick (components/ResourcePill.tsx) — the span is keyed on
+   its value, so a change remounts it and replays this. */
 @keyframes pulse-gain {
   0% {
     transform: scale(1);
   }
-  40% {
-    transform: scale(1.35);
-    color: #fde68a;
+  35% {
+    transform: scale(1.14);
+    color: var(--color-gold-bright);
   }
   100% {
     transform: scale(1);
@@ -205,63 +268,69 @@ body::after {
 
 .pulse-gain {
   display: inline-block;
-  animation: pulse-gain 0.4s ease-out;
+  animation: pulse-gain 320ms var(--ease-out);
 }
 
-.panel-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(245, 158, 11, 0.35) transparent;
-}
-.panel-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.panel-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(245, 158, 11, 0.35);
-  border-radius: 999px;
-}
-
-/* Gacha reveal animations (app/(game)/gacha) */
+/* Gacha reveal (app/(game)/gacha) — rare moment, allowed some delight. */
 @keyframes gacha-portal-spin {
-  from { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.08); }
-  to { transform: rotate(360deg) scale(1); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes gacha-pop-in {
-  0% { opacity: 0; transform: scale(0.6) translateY(8px); }
-  80% { opacity: 1; transform: scale(1.06) translateY(0); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 @keyframes gacha-legendary-glow {
-  0%, 100% { box-shadow: 0 0 6px 0 rgba(245, 158, 11, 0.35); }
-  50% { box-shadow: 0 0 28px 6px rgba(245, 158, 11, 0.75); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px oklch(0.83 0.12 82 / 0.5), 0 0 12px 0 oklch(0.83 0.12 82 / 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 1px oklch(0.83 0.12 82 / 0.8), 0 0 28px 4px oklch(0.83 0.12 82 / 0.45);
+  }
 }
 
-/* Card "flip" via a 2D horizontal squash instead of a 3D rotateY — avoids
-   backface-visibility/preserve-3d cross-browser footguns while still
-   reading as a flip. The mystery face squashes to nothing, the result
-   face un-squashes right after; both end in their final, fully visible
-   state (animation-fill-mode: forwards) so the result is never stuck
-   invisible even if a step gets interrupted. */
+/* Card "flip" via a horizontal squash (no 3D backface footguns); both faces
+   end in their final state (fill-mode forwards) so a result is never stuck
+   invisible if a step gets interrupted. */
 @keyframes gacha-flip-out {
-  0% { transform: scaleX(1); opacity: 1; }
-  100% { transform: scaleX(0); opacity: 0; }
+  from {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  to {
+    transform: scaleX(0);
+    opacity: 0;
+  }
 }
 
 @keyframes gacha-flip-in {
-  0% { transform: scaleX(0); opacity: 0; }
-  100% { transform: scaleX(1); opacity: 1; }
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
 }
 
 .gacha-portal {
-  animation: gacha-portal-spin 1.4s linear infinite;
+  animation: gacha-portal-spin 1.1s linear infinite;
 }
 
 .gacha-card-wrap {
   opacity: 0;
-  animation: gacha-pop-in 0.35s ease forwards;
+  animation: gacha-pop-in 320ms var(--ease-out) forwards;
   animation-delay: var(--delay, 0s);
 }
 
@@ -270,6 +339,7 @@ body::after {
   width: 100%;
   height: 100%;
   min-height: 110px;
+  border-radius: 0.75rem;
 }
 
 .gacha-card-face {
@@ -284,35 +354,84 @@ body::after {
 }
 
 .gacha-card-mystery {
-  animation: gacha-flip-out 0.25s ease forwards;
-  animation-delay: calc(var(--delay, 0s) + 0.35s);
+  animation: gacha-flip-out 180ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
+  animation-delay: calc(var(--delay, 0s) + 0.32s);
 }
 
 .gacha-card-result {
   opacity: 0;
-  animation: gacha-flip-in 0.3s ease forwards;
-  animation-delay: calc(var(--delay, 0s) + 0.6s);
+  animation: gacha-flip-in 240ms var(--ease-out) forwards;
+  animation-delay: calc(var(--delay, 0s) + 0.5s);
 }
 
 .gacha-card-legendary {
-  animation: gacha-legendary-glow 1.6s ease-in-out infinite;
+  animation: gacha-legendary-glow 1.8s ease-in-out infinite;
 }
 
-/* Full-conquest banner (app/(game)/donjon/attaquer/raid) */
+/* Full-conquest banner (app/(game)/donjon/attaquer/raid) — a celebration, so
+   a small overshoot is earned. */
 @keyframes dungeon-victory-pop {
-  0% { opacity: 0; transform: scale(0.85) translateY(12px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modals & overlays: backdrop fades, panel pops from 0.96 (never from 0). */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-fade {
+  animation: fade-in 200ms var(--ease-out) both;
+}
+
+.animate-pop {
+  animation: pop-in 240ms var(--ease-out) both;
 }
 
 .dungeon-victory-backdrop {
-  animation: rise-in 0.25s ease forwards;
+  animation: fade-in 200ms var(--ease-out) forwards;
 }
 
 .dungeon-victory-card {
-  animation: dungeon-victory-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: dungeon-victory-pop 420ms cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
 }
 
-/* Directional page transitions (components/PageTransition.tsx) */
+/* Le Velours Noir: sprite expression swap */
+@keyframes velours-fade {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Directional page transitions (components/PageTransition.tsx). Short and
+   ease-out: navigation happens dozens of times a session. */
 ::view-transition {
   pointer-events: none;
 }
@@ -335,52 +454,64 @@ body::after {
   }
 }
 
-::view-transition-old(.nav-forward) {
-  --slide-offset: -60px;
-  animation:
-    150ms ease-in both via-fade reverse,
-    400ms ease-in-out both via-slide reverse;
+::view-transition-old(.nav-forward),
+::view-transition-old(.nav-back) {
+  animation: 120ms ease-out both via-fade reverse;
 }
 ::view-transition-new(.nav-forward) {
-  --slide-offset: 60px;
+  --slide-offset: 16px 0;
   animation:
-    210ms ease-out 150ms both via-fade,
-    400ms ease-in-out both via-slide;
-}
-
-::view-transition-old(.nav-back) {
-  --slide-offset: 60px;
-  animation:
-    150ms ease-in both via-fade reverse,
-    400ms ease-in-out both via-slide reverse;
+    220ms var(--ease-out) 60ms both via-fade,
+    260ms var(--ease-out) 60ms both via-slide;
 }
 ::view-transition-new(.nav-back) {
-  --slide-offset: -60px;
+  --slide-offset: -16px 0;
   animation:
-    210ms ease-out 150ms both via-fade,
-    400ms ease-in-out both via-slide;
+    220ms var(--ease-out) 60ms both via-fade,
+    260ms var(--ease-out) 60ms both via-slide;
 }
 
-/* Keeps the game nav header fixed in place during directional slides. */
-::view-transition-group(site-header) {
+/* App chrome stays put during page slides. */
+::view-transition-group(site-header),
+::view-transition-group(site-tabbar) {
   animation: none;
   z-index: 100;
 }
-::view-transition-old(site-header) {
+::view-transition-old(site-header),
+::view-transition-old(site-tabbar) {
   display: none;
 }
-::view-transition-new(site-header) {
+::view-transition-new(site-header),
+::view-transition-new(site-tabbar) {
   animation: none;
 }
 
-/* Le Velours Noir: sprite expression swap */
-@keyframes velours-fade {
-  from {
-    opacity: 0.4;
-    transform: translateY(4px) scale(0.99);
+/* Reduced motion = fewer, gentler animations, not none: keep fades, drop
+   movement and ambient loops. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-pop,
+  .gacha-card-wrap {
+    animation-name: fade-in;
   }
-  to {
-    opacity: 1;
-    transform: none;
+  .dungeon-victory-card {
+    animation: fade-in 200ms ease-out forwards;
+  }
+  .ember,
+  .gacha-portal,
+  .gacha-card-legendary {
+    animation: none;
+  }
+  .pulse-gain {
+    animation: none;
+  }
+  ::view-transition-new(.nav-forward),
+  ::view-transition-new(.nav-back) {
+    animation: 180ms ease-out both via-fade;
+  }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
   }
 }

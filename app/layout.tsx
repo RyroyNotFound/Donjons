@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Cinzel } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { GameDataProvider } from "@/lib/game/GameDataProvider";
-import { EmberField } from "@/components/EmberField";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,14 +25,23 @@ export const metadata: Metadata = {
   description: "Défendez votre donjon, envoyez vos héros au combat.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+  colorScheme: "dark",
+  // Matches the header/canvas color so the status bar blends in.
+  themeColor: "#12100e",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} ${cinzel.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col text-slate-100">
-        <EmberField />
+      <body className="flex min-h-full flex-col text-fg">
         <AuthProvider>
           <GameDataProvider>{children}</GameDataProvider>
         </AuthProvider>

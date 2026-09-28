@@ -11,12 +11,12 @@ export function EmptyState({
   backLabel: string;
 }) {
   return (
-    <Card>
-      <p className="text-slate-300">{message}</p>
+    <Card className="text-center">
+      <p className="text-fg-muted">{message}</p>
       <Link
         href={backHref}
         transitionTypes={["nav-back"]}
-        className="mt-3 inline-block text-amber-400 hover:underline"
+        className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-gold hover:text-gold-bright"
       >
         ← {backLabel}
       </Link>

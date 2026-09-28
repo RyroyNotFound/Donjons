@@ -16,13 +16,16 @@ export function ResourcePill({
 }) {
   return (
     <span
-      className={`items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium ${colorClassName} ${
-        hiddenOnMobile ? "hidden sm:inline-flex" : "inline-flex"
+      className={`items-center gap-1.5 px-2 text-xs font-medium tabular-nums ${colorClassName} ${
+        hiddenOnMobile ? "hidden md:inline-flex" : "inline-flex"
       }`}
+      title={label}
       aria-label={`${label} : ${value}`}
     >
-      <Icon name={icon} className="h-3.5 w-3.5" />
-      <span key={value} className="pulse-gain">{value}</span>
+      <Icon name={icon} className="h-4 w-4" />
+      <span key={value} className="pulse-gain">
+        {value.toLocaleString("fr-FR")}
+      </span>
     </span>
   );
 }

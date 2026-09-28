@@ -11,6 +11,8 @@ import { levelCapForStar, MASTERY_SLOTS, MAX_STAR_RANK, rankUpCost, SPELL_SLOTS 
 import { heroTodos, type HeroContext, type HeroTab } from "@/lib/game/heroInsights";
 import { RAID_EFFECT_NAME } from "@/lib/game/engine/dungeonCombat";
 import { RARITY_BADGE } from "@/lib/ui/rarity";
+import { focusRing } from "@/lib/ui/a11y";
+import { NavIcon } from "@/components/NavIcon";
 import { ROLE_LABEL } from "@/lib/ui/role";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -21,16 +23,16 @@ import type { ClassDefinition, HeroStats, ItemSlot, UserProfile } from "@/types/
 const TODO_STYLE = {
   bad: { icon: "✗", color: "text-red-300" },
   warn: { icon: "⚠", color: "text-amber-300" },
-  info: { icon: "ℹ", color: "text-slate-300" },
+  info: { icon: "ℹ", color: "text-fg-muted" },
 } as const;
 
 const SLOT_SHORT: Record<ItemSlot, string> = { weapon: "Arme", armor: "Armure", trinket: "Babiole" };
 
 function Stat({ label, value, hint, strong }: { label: string; value: string | number; hint?: string; strong?: boolean }) {
   return (
-    <div className="rounded-lg bg-black/25 px-2 py-1.5" title={hint}>
-      <p className="text-[11px] text-slate-500">{label}</p>
-      <p className={`tabular-nums ${strong ? "text-lg font-bold text-amber-200" : "text-sm font-semibold text-slate-100"}`}>{value}</p>
+    <div className="min-w-0 rounded-lg border border-line bg-white/[0.025] px-3 py-2" title={hint}>
+      <p className="truncate text-xs text-fg-subtle">{label}</p>
+      <p className={`mt-0.5 truncate text-lg font-semibold tabular-nums ${strong ? "text-gold" : "text-fg"}`}>{value}</p>
     </div>
   );
 }
@@ -38,17 +40,24 @@ function Stat({ label, value, hint, strong }: { label: string; value: string | n
 /** A clickable row of the build summary: label + slots, jumping to the matching tab. */
 function BuildRow({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className="flex w-full items-start gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-white/5">
-      <span className="w-20 shrink-0 pt-0.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/60`}
+    >
+      <span className="w-20 shrink-0 pt-0.5 text-xs font-medium text-fg-subtle">{label}</span>
       <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">{children}</span>
-      <span className="pt-0.5 text-xs text-slate-500">›</span>
+      <NavIcon
+        name="chevron-right"
+        className="mt-0.5 h-4 w-4 shrink-0 text-fg-faint transition-[transform,color] duration-150 ease-out group-hover:translate-x-0.5 group-hover:text-gold"
+      />
     </button>
   );
 }
 
 function Slot({ children, empty, className = "" }: { children: React.ReactNode; empty?: boolean; className?: string }) {
   return (
-    <span className={`max-w-full truncate rounded border px-2 py-0.5 text-xs ${empty ? "border-dashed border-red-500/40 text-red-300/80" : className || "border-white/10 text-slate-200"}`}>
+    <span className={`max-w-full truncate rounded-md border px-2 py-0.5 text-xs ${empty ? "border-dashed border-red-400/35 text-red-300/90" : className || "border-line bg-white/[0.03] text-fg"}`}>
       {children}
     </span>
   );
@@ -88,12 +97,12 @@ export function HeroOverview({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-4">
-        <Card>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-display font-semibold text-slate-50">Puissance</h2>
-            <span className="text-2xl font-bold tabular-nums text-amber-300">{heroPower(stats)}</span>
+        <Card className="space-y-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-semibold text-fg">Puissance</h2>
+            <span className="text-2xl font-semibold tabular-nums tracking-tight text-gold">{heroPower(stats)}</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Stat
               label={`Attaque ${magic ? "magique" : "physique"}`}
               value={usedAtk}
@@ -107,35 +116,52 @@ export function HeroOverview({
             <Stat label="Critique" value={`${stats.crit} % · +${stats.critDmg} %`} hint="Chance de critique · dégâts en plus" />
           </div>
           {unusedAtk > 0 && (
-            <p className="mt-2 text-xs text-slate-500">
-              Attaque {magic ? "physique" : "magique"} : {unusedAtk} — inutilisée (seule la plus haute des deux compte).
+            <p className="text-xs text-fg-subtle">
+              Attaque {magic ? "physique" : "magique"} : <span className="tabular-nums">{unusedAtk}</span> — inutilisée (seule la
+              plus haute des deux compte).
             </p>
           )}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-400">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="mr-1 text-fg-muted">
               Élément :{" "}
               {element ? (
-                <span className="text-slate-200">
+                <span className="text-fg">
                   {ELEMENT_ICON[element]} {ELEMENT_LABEL[element]}
                 </span>
               ) : (
-                <span className="text-slate-500">neutre</span>
+                <span className="text-fg-subtle">neutre</span>
               )}
             </span>
             {ELEMENTS.filter((el) => stats[RES_KEY[el]] !== 0).map((el) => (
               <span
                 key={el}
                 title={`Résistance ${ELEMENT_LABEL[el].toLowerCase()}`}
-                className={`rounded-full border border-white/10 px-2 py-0.5 ${stats[RES_KEY[el]] > 0 ? "text-emerald-300" : "text-red-400"}`}
+                className={`rounded-md border px-1.5 py-0.5 tabular-nums ${
+                  stats[RES_KEY[el]] > 0
+                    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                    : "border-red-400/25 bg-red-400/10 text-red-300"
+                }`}
               >
                 {ELEMENT_ICON[el]} {stats[RES_KEY[el]]} %
               </span>
             ))}
-            {stats.trapRes > 0 && <span className="rounded-full border border-white/10 px-2 py-0.5 text-sky-300">Pièges −{stats.trapRes} %</span>}
+            {stats.trapRes > 0 && (
+              <span className="rounded-md border border-sky-400/25 bg-sky-400/10 px-1.5 py-0.5 tabular-nums text-sky-300">
+                Pièges −{stats.trapRes} %
+              </span>
+            )}
           </div>
-          <details className="mt-3 text-xs text-slate-500">
-            <summary className="cursor-pointer text-slate-400 hover:text-slate-200">Comment lire ces stats ?</summary>
-            <p className="mt-1">
+          <details className="group text-xs text-fg-subtle">
+            <summary
+              className={`flex cursor-pointer list-none items-center gap-1 rounded text-fg-muted [&::-webkit-details-marker]:hidden transition-colors duration-150 ease-out hover:text-fg ${focusRing}`}
+            >
+              <NavIcon
+                name="chevron-right"
+                className="h-3.5 w-3.5 transition-transform duration-200 ease-out group-open:rotate-90"
+              />
+              Comment lire ces stats ?
+            </summary>
+            <p className="mt-2 leading-relaxed">
               La puissance résume le héros : son attaque utilisée, ses défenses, PV/10, sa vitesse, le gain moyen de ses critiques et
               un peu de ses résistances. Chaque choix des autres onglets affiche ce qu&apos;il y change (▲ / ▼). Un coup perd la moitié de
               la défense du même type chez la cible : mieux vaut tout miser sur un seul type d&apos;attaque. L&apos;élément vient du 1er
@@ -144,9 +170,9 @@ export function HeroOverview({
           </details>
         </Card>
 
-        <Card>
-          <h2 className="font-display mb-2 font-semibold text-slate-50">Build</h2>
-          <div className="space-y-0.5">
+        <Card className="p-0">
+          <h2 className="px-5 pb-2 pt-5 font-semibold text-fg">Build</h2>
+          <div className="divide-y divide-line border-t border-line">
             <BuildRow label="Objets" onClick={() => goTo("equipement")}>
               {(["weapon", "armor", "trinket"] as ItemSlot[]).map((slot) => {
                 const item = items.find((i) => i.id === hero.equipment[slot]);
@@ -168,7 +194,7 @@ export function HeroOverview({
                 return spell ? (
                   <Slot key={i}>
                     {spell.name}
-                    {i === 0 && <span className="ml-1 text-amber-400">· donjon : {RAID_EFFECT_NAME[spell.raidEffectTag]}</span>}
+                    {i === 0 && <span className="ml-1 text-gold">· donjon : {RAID_EFFECT_NAME[spell.raidEffectTag]}</span>}
                   </Slot>
                 ) : (
                   <Slot key={i} empty>
@@ -192,9 +218,16 @@ export function HeroOverview({
             {classDef && (
               <BuildRow label="Talents" onClick={() => goTo("talents")}>
                 <Slot>
-                  {tree.filter((n) => (hero.talents[n.id] ?? 0) > 0).length}/{tree.length} activés
+                  <span className="tabular-nums">
+                    {tree.filter((n) => (hero.talents[n.id] ?? 0) > 0).length}/{tree.length}
+                  </span>{" "}
+                  activés
                 </Slot>
-                {hero.talentPoints > 0 && <Slot className="border-amber-500/50 text-amber-300">{hero.talentPoints} pts à dépenser</Slot>}
+                {hero.talentPoints > 0 && (
+                  <Slot className="border-gold/35 bg-gold/10 text-gold">
+                    <span className="tabular-nums">{hero.talentPoints}</span> pts à dépenser
+                  </Slot>
+                )}
               </BuildRow>
             )}
           </div>
@@ -202,20 +235,22 @@ export function HeroOverview({
       </div>
 
       <div className="space-y-4">
-        <Card accent={todos.some((t) => t.tone === "bad") ? "danger" : todos.length ? "gold" : "success"}>
-          <h2 className="font-display mb-2 font-semibold text-slate-50">À améliorer</h2>
+        <Card accent={todos.some((t) => t.tone === "bad") ? "danger" : todos.length ? "gold" : "success"} className="space-y-3">
+          <h2 className="font-semibold text-fg">À améliorer</h2>
           {todos.length === 0 ? (
             <p className="text-sm text-emerald-300">Rien à signaler : ce héros tire le meilleur de ce que vous possédez.</p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="-mx-2 space-y-0.5">
               {todos.map((todo, i) => (
                 <li key={i}>
                   <button
                     type="button"
                     onClick={() => goTo(todo.tab)}
-                    className={`flex w-full gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-white/5 ${TODO_STYLE[todo.tone].color}`}
+                    className={`flex w-full gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-150 ease-out hover:bg-white/[0.04] ${focusRing} ${TODO_STYLE[todo.tone].color}`}
                   >
-                    <span className="shrink-0">{TODO_STYLE[todo.tone].icon}</span>
+                    <span className="w-4 shrink-0 text-center" aria-hidden>
+                      {TODO_STYLE[todo.tone].icon}
+                    </span>
                     <span>{todo.text}</span>
                   </button>
                 </li>
@@ -224,10 +259,10 @@ export function HeroOverview({
           )}
         </Card>
 
-        <Card>
-          <h2 className="font-display mb-2 font-semibold text-slate-50">Classe</h2>
+        <Card className="space-y-3">
+          <h2 className="font-semibold text-fg">Classe</h2>
           {profile.unlockedClasses.length === 0 ? (
-            <p className="text-sm text-slate-400">Aucune classe obtenue pour l&apos;instant — tentez votre chance à l&apos;invocation.</p>
+            <p className="text-sm text-fg-muted">Aucune classe obtenue pour l&apos;instant — tentez votre chance à l&apos;invocation.</p>
           ) : (
             <>
               <select
@@ -246,34 +281,40 @@ export function HeroOverview({
                 ))}
               </select>
               {classDef && (
-                <p className="mt-2 text-xs text-slate-500">
-                  <span className="text-emerald-400">+</span> {classDef.strengths} · <span className="text-red-400">−</span> {classDef.weaknesses}
+                <p className="text-xs leading-relaxed text-fg-subtle">
+                  <span className="text-emerald-300">+</span> {classDef.strengths} · <span className="text-red-300">−</span>{" "}
+                  {classDef.weaknesses}
                 </p>
               )}
-              {hero.status !== "idle" && <p className="mt-2 text-xs text-amber-400">Rendez ce héros disponible pour changer de classe.</p>}
+              {hero.status !== "idle" && <p className="text-xs text-gold">Rendez ce héros disponible pour changer de classe.</p>}
             </>
           )}
         </Card>
 
-        <Card>
-          <h2 className="font-display mb-2 font-semibold text-slate-50">Progression</h2>
-          <p className="mb-1 flex justify-between text-xs text-slate-400">
-            <span>
-              Niveau {hero.level}/{cap}
-            </span>
-            <span>
-              XP {hero.xp}/{xpToNextLevel(hero.level)}
-            </span>
-          </p>
-          <ProgressBar value={hero.xp} max={xpToNextLevel(hero.level)} />
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="text-amber-400">
-              {"★".repeat(star)}
-              {"☆".repeat(MAX_STAR_RANK - star)}
+        <Card className="space-y-3">
+          <h2 className="font-semibold text-fg">Progression</h2>
+          <div className="space-y-2">
+            <p className="flex justify-between text-xs text-fg-muted">
+              <span>
+                Niveau{" "}
+                <span className="font-semibold tabular-nums text-fg">
+                  {hero.level}/{cap}
+                </span>
+              </span>
+              <span className="tabular-nums">
+                XP {hero.xp}/{xpToNextLevel(hero.level)}
+              </span>
+            </p>
+            <ProgressBar value={hero.xp} max={xpToNextLevel(hero.level)} label="Expérience" />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-sm">
+            <span className="tracking-wider">
+              <span className="text-gold">{"★".repeat(star)}</span>
+              <span className="text-fg-faint">{"☆".repeat(MAX_STAR_RANK - star)}</span>
             </span>
             {cost ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">
+                <span className="text-xs tabular-nums text-fg-muted">
                   {cost.rankTokens} jetons ({profile.rankTokens}) + {cost.gold} or
                 </span>
                 <Button size="sm" onClick={onAscend} disabled={!canAscend}>
@@ -281,10 +322,10 @@ export function HeroOverview({
                 </Button>
               </div>
             ) : (
-              <span className="text-xs text-slate-400">Rang maximum</span>
+              <span className="text-xs text-fg-muted">Rang maximum</span>
             )}
           </div>
-          <p className="mt-1 text-xs text-slate-500">Chaque étoile : +8 % de stats et +10 niveaux maximum.</p>
+          <p className="text-xs text-fg-subtle">Chaque étoile : +8 % de stats et +10 niveaux maximum.</p>
         </Card>
       </div>
     </div>

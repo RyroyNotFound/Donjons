@@ -21,10 +21,10 @@ const TYPE_LABEL: Record<DungeonRoomCell["type"], string> = {
 };
 
 const TYPE_STYLE: Record<DungeonRoomCell["type"], string> = {
-  empty: "border-white/15 bg-black/20 text-slate-500",
-  trap: "border-red-500/40 bg-red-500/10 text-red-300",
-  monster: "border-purple-500/40 bg-purple-500/10 text-purple-300",
-  treasure: "border-amber-500/50 bg-amber-500/10 text-amber-300",
+  empty: "border-line-strong bg-white/[0.04] text-fg-subtle hover:bg-white/[0.07]",
+  trap: "border-red-400/30 bg-red-400/10 text-red-300 hover:bg-red-400/15",
+  monster: "border-purple-400/30 bg-purple-400/10 text-purple-300 hover:bg-purple-400/15",
+  treasure: "border-amber-300/35 bg-amber-300/10 text-amber-300 hover:bg-amber-300/15",
 };
 
 /** Clickable grid editor: click an empty cell adjacent to a placed room to add one, click a placed room to select it. */
@@ -44,7 +44,7 @@ export function DungeonGridEditor({
   }
 
   return (
-    <div className="grid max-w-md grid-cols-5 gap-1.5">
+    <div className="grid max-w-md grid-cols-5 gap-1.5 rounded-xl border border-line bg-black/25 p-2">
       {cells.map(({ row, col }) => {
         const key = `${row},${col}`;
         const room = byKey.get(key);
@@ -53,7 +53,7 @@ export function DungeonGridEditor({
         const selected = key === selectedKey;
 
         if (!room && !placeable) {
-          return <div key={key} className="aspect-square rounded-lg border border-white/5 bg-black/10" />;
+          return <div key={key} className="aspect-square rounded-lg border border-line bg-white/[0.01]" />;
         }
 
         return (
@@ -63,16 +63,16 @@ export function DungeonGridEditor({
             title={isEntrance ? "Entrée" : undefined}
             aria-label={isEntrance ? "Entrée du donjon" : room ? TYPE_LABEL[room.type] : "Emplacement libre — ajouter une salle"}
             aria-pressed={room ? selected : undefined}
-            className={`aspect-square rounded-lg border text-lg transition ${focusRing} ${
+            className={`flex aspect-square items-center justify-center rounded-lg border text-lg transition-[transform,background-color,border-color,color,box-shadow] duration-150 ease-out active:scale-[0.97] ${focusRing} ${
               room
                 ? TYPE_STYLE[room.type]
-                : "border-dashed border-white/20 bg-white/5 text-slate-500 hover:bg-white/10"
-            } ${selected ? "ring-2 ring-amber-400" : ""}`}
+                : "border-dashed border-line-strong text-fg-faint hover:border-gold/40 hover:bg-gold/[0.06] hover:text-gold"
+            } ${selected ? "ring-2 ring-gold/60" : ""}`}
           >
             {isEntrance ? (
               "🚪"
             ) : room?.type === "treasure" ? (
-              <Icon name="treasure" className="mx-auto h-4 w-4" />
+              <Icon name="treasure" className="h-4 w-4" />
             ) : room ? (
               TYPE_ICON[room.type]
             ) : (

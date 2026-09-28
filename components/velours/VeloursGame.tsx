@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { buttonClasses } from "@/components/Button";
+import { focusRing } from "@/lib/ui/a11y";
 import {
   CONQUEST_THRESHOLD,
   DRINKS,
@@ -76,7 +77,7 @@ function expressionFor(delta: number): Expression {
 function Portrait({ h, expression = "neutre", hot = false }: { h: Hostess; expression?: Expression; hot?: boolean }) {
   return (
     <div
-      className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-gradient-to-br ${h.gradient} shadow-lg shadow-fuchsia-950/50 ring-2 ring-white/10`}
+      className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-gradient-to-br ${h.gradient} shadow-[0_4px_12px_-2px_rgb(74_4_78/0.5)] ring-1 ring-line-strong`}
     >
       <Image
         src={spriteSrc(h, expression, hot)}
@@ -118,17 +119,21 @@ function Sprite({
 function AffectionBar({ value, conquered }: { value: number; conquered: boolean }) {
   return (
     <div className="w-full">
-      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${
+          className={`h-full rounded-full transition-[width] duration-500 ease-out ${
             conquered ? "bg-gradient-to-r from-fuchsia-400 to-rose-400" : "bg-gradient-to-r from-rose-600 to-fuchsia-500"
           }`}
           style={{ width: `${conquered ? 100 : (value / CONQUEST_THRESHOLD) * 100}%` }}
         />
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-slate-400">
-        <span>{affectionLabel(value, conquered)}</span>
-        {!conquered && <span>{value}/{CONQUEST_THRESHOLD}</span>}
+      <div className="mt-1 flex justify-between gap-2 text-[11px] text-fg-subtle">
+        <span className={conquered ? "text-rose-300" : undefined}>{affectionLabel(value, conquered)}</span>
+        {!conquered && (
+          <span className="tabular-nums">
+            {value}/{CONQUEST_THRESHOLD}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -167,25 +172,32 @@ export function VeloursGame() {
 
   if (!state) {
     return (
-      <div className="mx-auto max-w-xl space-y-6 py-10 text-center">
-        <div className="text-6xl">🍸</div>
-        <h1 className="font-display bg-gradient-to-r from-fuchsia-400 via-rose-400 to-amber-300 bg-clip-text text-4xl font-bold text-transparent">
-          Le Velours Noir
-        </h1>
-        <p className="text-slate-300">
+      <div className="animate-rise mx-auto max-w-xl space-y-6 py-10 text-center">
+        <div className="text-6xl" aria-hidden>
+          🍸
+        </div>
+        <h1 className="font-display text-4xl font-semibold text-rose-200">Le Velours Noir</h1>
+        <p className="leading-relaxed text-fg-muted">
           Un bar à hôtesses feutré, des néons rouges, dix femmes qui ont vu défiler tous les dragueurs de la ville.
           Ton objectif : <span className="font-semibold text-rose-300">les conquérir toutes les dix</span>. La dernière
           est la patronne. Personne ne l&apos;a jamais eue.
         </p>
-        <ul className="mx-auto max-w-sm space-y-1 text-left text-sm text-slate-400">
-          <li>🗣️ Chaque hôtesse a ses goûts : charme, humour, audace, sincérité ou flambe.</li>
-          <li>🥂 Verres et cadeaux coûtent de l&apos;argent (+{NIGHTLY_PAY} € par nuit).</li>
-          <li>🔥 Les gestes osés rapportent gros… ou te valent une gifle.</li>
-          <li>🌙 {TURNS_PER_NIGHT} actions par nuit. Six filles en service chaque soir.</li>
+        <ul className="mx-auto max-w-sm space-y-2 rounded-xl border border-fuchsia-400/20 bg-surface p-4 text-left text-sm text-fg-muted">
+          {[
+            <>Chaque hôtesse a ses goûts : charme, humour, audace, sincérité ou flambe.</>,
+            <>Verres et cadeaux coûtent de l&apos;argent (+{NIGHTLY_PAY} € par nuit).</>,
+            <>Les gestes osés rapportent gros… ou te valent une gifle.</>,
+            <>{TURNS_PER_NIGHT} actions par nuit. Six filles en service chaque soir.</>,
+          ].map((line, i) => (
+            <li key={i} className="flex gap-2.5">
+              <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-fuchsia-400" aria-hidden />
+              <span>{line}</span>
+            </li>
+          ))}
         </ul>
-        <p className="text-xs text-slate-500">Contenu suggestif, humour pour adultes. Tous les personnages sont majeurs.</p>
-        <p className="text-[11px] text-slate-600">Sprites : « Anime Mature Woman » par Sutemo (itch.io).</p>
-        <button onClick={() => setState(newGame())} className={buttonClasses("primary", "md", "px-6")}>
+        <p className="text-xs text-fg-subtle">Contenu suggestif, humour pour adultes. Tous les personnages sont majeurs.</p>
+        <p className="text-[11px] text-fg-faint">Sprites : « Anime Mature Woman » par Sutemo (itch.io).</p>
+        <button onClick={() => setState(newGame())} className={buttonClasses("primary", "lg", "px-6")}>
           Pousser la porte
         </button>
       </div>
@@ -248,13 +260,21 @@ export function VeloursGame() {
   return (
     <div className="space-y-5">
       {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-fuchsia-500/20 bg-gradient-to-r from-fuchsia-950/60 via-[var(--ink-950)] to-rose-950/60 px-4 py-3">
-        <div className="font-display text-lg font-bold text-rose-300">🍸 Le Velours Noir</div>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-lg bg-white/5 px-2.5 py-1">🌙 Nuit {s.night}</span>
-          <span className="rounded-lg bg-white/5 px-2.5 py-1">⏳ {s.turnsLeft}/{TURNS_PER_NIGHT}</span>
-          <span className="rounded-lg bg-white/5 px-2.5 py-1 text-emerald-300">💶 {s.money} €</span>
-          <span className="rounded-lg bg-rose-500/15 px-2.5 py-1 text-rose-300">💘 {s.conquered.length}/{GOAL}</span>
+      <div className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-xl border border-fuchsia-400/20 bg-gradient-to-r from-fuchsia-950/50 via-surface to-rose-950/40 px-4 py-3 shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-300/50 to-transparent"
+        />
+        <h1 className="font-display text-lg font-semibold text-rose-200">Le Velours Noir</h1>
+        <div className="flex flex-wrap items-center gap-1.5 text-sm tabular-nums">
+          <span className="rounded-md border border-line bg-white/[0.04] px-2 py-1 text-fg">🌙 Nuit {s.night}</span>
+          <span className="rounded-md border border-line bg-white/[0.04] px-2 py-1 text-fg">
+            ⏳ {s.turnsLeft}/{TURNS_PER_NIGHT}
+          </span>
+          <span className="rounded-md border border-emerald-400/20 bg-emerald-400/[0.06] px-2 py-1 text-emerald-300">💶 {s.money} €</span>
+          <span className="rounded-md border border-rose-400/25 bg-rose-400/10 px-2 py-1 text-rose-300">
+            💘 {s.conquered.length}/{GOAL}
+          </span>
           <button onClick={reset} className={buttonClasses("ghost", "sm")}>
             Recommencer
           </button>
@@ -283,15 +303,15 @@ export function VeloursGame() {
         <Overlay>
           <div className={`relative -mx-6 -mt-6 overflow-hidden rounded-t-2xl bg-gradient-to-b ${scene.h.gradient}`}>
             <Sprite h={scene.h} expression={scene.expression} className="mx-auto h-72 w-auto object-cover object-top" />
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-fuchsia-950 via-fuchsia-950/80 to-transparent px-6 pb-3 pt-10">
-              <div className="font-display text-xl font-bold text-rose-200">{scene.h.name}</div>
-              <div className="text-xs uppercase tracking-widest text-fuchsia-300">
-                {scene.replay ? "📸 Souvenir" : scene.conquest ? "💘 Conquise" : "✨ Moment volé"}
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-surface via-surface/80 to-transparent px-6 pb-3 pt-10">
+              <div className="font-display text-xl font-semibold text-rose-200">{scene.h.name}</div>
+              <div className="text-xs font-medium uppercase tracking-[0.14em] text-fuchsia-300">
+                {scene.replay ? "Souvenir" : scene.conquest ? "Conquise" : "Moment volé"}
               </div>
             </div>
           </div>
-          <p className="text-[15px] italic leading-relaxed text-slate-200">{scene.text}</p>
-          {scene.conquest && <p className="text-center text-2xl tracking-[0.5em] text-slate-500">· · ·</p>}
+          <p className="text-[15px] italic leading-relaxed text-fg">{scene.text}</p>
+          {scene.conquest && <p className="text-center text-2xl tracking-[0.5em] text-fg-faint">· · ·</p>}
           <button
             onClick={() => {
               if (scene.conquest) setTableId(null);
@@ -307,9 +327,11 @@ export function VeloursGame() {
       {/* Victory */}
       {victory && !victorySeen && !scene && (
         <Overlay>
-          <div className="text-center text-6xl">👑</div>
-          <h2 className="font-display text-center text-2xl font-bold text-amber-300">Roi du Velours Noir</h2>
-          <p className="text-center text-slate-300">
+          <div className="text-center text-6xl" aria-hidden>
+            👑
+          </div>
+          <h2 className="font-display text-center text-2xl font-semibold text-gold">Roi du Velours Noir</h2>
+          <p className="text-center leading-relaxed text-fg-muted">
             Les dix dames du Velours Noir sont tombées sous ton charme en <b>{s.night}</b> nuit{s.night > 1 ? "s" : ""}.
             On parlera de toi dans ce bar pendant des années.
           </p>
@@ -331,9 +353,11 @@ export function VeloursGame() {
       {/* Closing time */}
       {nightOver && !victory && (
         <Overlay>
-          <div className="text-center text-5xl">🌅</div>
-          <h2 className="font-display text-center text-xl font-bold text-rose-300">Fermeture du bar</h2>
-          <p className="text-center text-sm text-slate-300">
+          <div className="text-center text-5xl" aria-hidden>
+            🌅
+          </div>
+          <h2 className="font-display text-center text-xl font-semibold text-rose-200">Fermeture du bar</h2>
+          <p className="text-center text-sm leading-relaxed text-fg-muted">
             Les néons s&apos;éteignent. Tu rentres seul… pour cette fois. Demain, ta paie tombe : +{NIGHTLY_PAY} €.
           </p>
           <button
@@ -353,8 +377,12 @@ export function VeloursGame() {
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md space-y-4 rounded-2xl border border-fuchsia-500/30 bg-gradient-to-b from-fuchsia-950 to-[var(--ink-950)] p-6 shadow-2xl shadow-fuchsia-950">
+    <div className="animate-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="animate-pop relative max-h-[calc(100dvh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl border border-fuchsia-400/25 bg-surface p-6 shadow-[0_24px_48px_-12px_rgb(0_0_0/0.6),0_0_40px_-16px_rgb(217_70_239/0.35)]"
+      >
         {children}
       </div>
     </div>
@@ -365,11 +393,11 @@ function Room({ state, onSit, onEndNight }: { state: VeloursState; onSit: (id: s
   const lockedBoss = HOSTESSES.find((h) => h.unlockAfter && state.conquered.length < h.unlockAfter);
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-fg-muted">
         Ce soir, {state.present.length} hôtesses sont en service. Choisis ta table — tu peux en changer à tout moment.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {state.present.map((id) => {
+        {state.present.map((id, i) => {
           const h = HOSTESS_BY_ID[id];
           const conquered = state.conquered.includes(id);
           const mood = state.moods[id] ?? 0;
@@ -377,17 +405,20 @@ function Room({ state, onSit, onEndNight }: { state: VeloursState; onSit: (id: s
             <button
               key={id}
               onClick={() => onSit(id)}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-fuchsia-400/40 hover:bg-fuchsia-500/5"
+              style={{ "--delay": `${Math.min(i, 6) * 40}ms` } as React.CSSProperties}
+              className={`animate-rise flex items-center gap-3 rounded-xl border p-3 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[transform,border-color,background-color] duration-150 ease-out hover:border-fuchsia-400/40 hover:bg-surface-2 active:scale-[0.97] ${focusRing} ${
+                conquered ? "border-rose-400/25 bg-surface" : "border-line bg-surface"
+              }`}
             >
               <Portrait h={h} expression={conquered ? "rougit" : "neutre"} hot={isHot(state, id)} />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-slate-100">
-                    {h.name} <span className="text-xs font-normal text-slate-500">{h.age} ans</span>
+                  <span className="font-semibold text-fg">
+                    {h.name} <span className="text-xs font-normal tabular-nums text-fg-subtle">{h.age} ans</span>
                   </span>
                   <span title={MOOD_LABEL[mood]}>{MOOD_ICON[mood]}</span>
                 </div>
-                <div className="truncate text-xs text-slate-400">{h.tagline}</div>
+                <div className="truncate text-xs text-fg-muted">{h.tagline}</div>
                 <AffectionBar value={state.affection[id] ?? 0} conquered={conquered} />
               </div>
             </button>
@@ -395,18 +426,24 @@ function Room({ state, onSit, onEndNight }: { state: VeloursState; onSit: (id: s
         })}
       </div>
       {lockedBoss && (
-        <div className="flex items-center gap-3 rounded-2xl border border-dashed border-amber-400/30 p-3 text-sm text-slate-400">
-          <span className="text-2xl grayscale">👑</span>
+        <div className="flex items-center gap-3 rounded-xl border border-dashed border-gold/25 bg-white/[0.02] p-3 text-sm text-fg-muted">
+          <span className="text-2xl opacity-60 grayscale" aria-hidden>
+            👑
+          </span>
           <span>
-            Au comptoir, <b className="text-amber-300">{lockedBoss.name}</b> t&apos;observe sans un mot. Elle ne descendra
-            à ta table qu&apos;après {lockedBoss.unlockAfter} conquêtes ({state.conquered.length}/{lockedBoss.unlockAfter}).
+            Au comptoir, <b className="font-semibold text-gold">{lockedBoss.name}</b> t&apos;observe sans un mot. Elle ne descendra
+            à ta table qu&apos;après {lockedBoss.unlockAfter} conquêtes (
+            <span className="tabular-nums">
+              {state.conquered.length}/{lockedBoss.unlockAfter}
+            </span>
+            ).
           </span>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
           {HOSTESSES.filter((h) => state.conquered.includes(h.id)).map((h) => (
-            <span key={h.id} className="rounded-full bg-rose-500/15 px-2 py-0.5 text-xs text-rose-300">
+            <span key={h.id} className="rounded-md border border-rose-400/25 bg-rose-400/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-300">
               {h.emoji} {h.name}
             </span>
           ))}
@@ -458,29 +495,29 @@ function Table({
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       {/* Side card */}
-      <div className="space-y-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className={`-mx-4 -mt-4 w-[calc(100%+2rem)] bg-gradient-to-b ${h.gradient} opacity-95`}>
+      <div className="space-y-3 overflow-hidden rounded-xl border border-fuchsia-400/20 bg-surface p-4 shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]">
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <div className={`-mx-4 -mt-4 mb-1 w-[calc(100%+2rem)] bg-gradient-to-b ${h.gradient} opacity-95`}>
             <Sprite h={h} expression={expression} hot={isHot(state, h.id)} className="mx-auto h-auto max-h-[42vh] w-auto lg:max-h-none" />
           </div>
-          <div className="font-display text-xl font-bold text-rose-200">{h.name}</div>
-          <div className="text-xs text-slate-400">
+          <div className="text-lg font-semibold text-rose-200">{h.name}</div>
+          <div className="text-xs text-fg-muted">
             {h.age} ans · {h.tagline}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-fg-subtle">
             {MOOD_ICON[mood]} {MOOD_LABEL[mood]}
           </div>
         </div>
         <AffectionBar value={aff} conquered={conquered} />
         {souvenirs.length > 0 && (
           <div className="space-y-1.5">
-            <div className="text-[11px] uppercase tracking-widest text-slate-500">📸 Souvenirs</div>
+            <div className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">Souvenirs</div>
             <div className="flex flex-wrap gap-1.5">
               {souvenirs.map((s) => (
                 <button
                   key={s.label}
                   onClick={() => onReplay(s.text, s.expression)}
-                  className={buttonClasses("ghost", "sm", "border border-fuchsia-400/30 text-fuchsia-200")}
+                  className={`inline-flex h-8 items-center rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/[0.06] px-3 text-xs font-semibold text-fuchsia-200 transition-[transform,background-color,border-color] duration-150 ease-out hover:border-fuchsia-400/50 hover:bg-fuchsia-500/[0.12] active:scale-[0.97] ${focusRing}`}
                 >
                   {s.label}
                 </button>
@@ -495,17 +532,17 @@ function Table({
 
       {/* Conversation */}
       <div className="space-y-4">
-        <div className="space-y-2 rounded-2xl border border-white/10 bg-black/30 p-4">
+        <div className="space-y-2 rounded-xl border border-line bg-black/20 p-4" aria-live="polite">
           {log.map((e, i) => (
-            <div key={i} className={`flex ${e.who === "you" ? "justify-end" : "justify-start"}`}>
+            <div key={i} className={`animate-fade flex ${e.who === "you" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                  e.who === "you" ? "bg-sky-500/15 text-sky-100" : "bg-fuchsia-500/10 text-slate-200"
+                className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                  e.who === "you" ? "rounded-br-md bg-sky-400/10 text-sky-100" : "rounded-bl-md bg-fuchsia-500/10 text-fg"
                 }`}
               >
                 {e.text}
                 {e.delta !== undefined && e.delta !== 0 && (
-                  <span className={`ml-2 text-xs font-bold ${e.delta > 0 ? "text-rose-300" : "text-slate-500"}`}>
+                  <span className={`ml-2 text-xs font-semibold tabular-nums ${e.delta > 0 ? "text-rose-300" : "text-fg-subtle"}`}>
                     {e.delta > 0 ? `❤ +${e.delta}` : `💔 ${e.delta}`}
                   </span>
                 )}
@@ -513,8 +550,8 @@ function Table({
             </div>
           ))}
           {topic && !noTurns && (
-            <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-2xl bg-fuchsia-500/20 px-3 py-2 text-sm font-medium text-fuchsia-100">
+            <div className="animate-fade flex justify-start">
+              <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-fuchsia-400/25 bg-fuchsia-500/15 px-3 py-2 text-sm font-medium text-fuchsia-100">
                 {topic.line}
               </div>
             </div>
@@ -522,13 +559,13 @@ function Table({
         </div>
 
         {conquered ? (
-          <p className="text-center text-sm text-slate-400">Elle est à toi. Va plutôt tenter ta chance ailleurs… 😏</p>
+          <p className="text-center text-sm text-fg-muted">Elle est à toi. Va plutôt tenter ta chance ailleurs… 😏</p>
         ) : noTurns ? null : aff >= CONQUEST_THRESHOLD ? (
           <button
             onClick={() => apply(proposeAfter(state, h.id), "On s'éclipse ? Je connais un endroit où on sera tranquilles.")}
-            className={buttonClasses("danger", "md", "w-full py-3 text-base")}
+            className={buttonClasses("danger", "lg", "w-full")}
           >
-            🔥 Lui proposer un after
+            Lui proposer un after
           </button>
         ) : (
           <>
@@ -538,12 +575,11 @@ function Table({
                   <button
                     key={a.style}
                     onClick={() => apply(answer(state, h.id, topic.id, a.style), a.text)}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-slate-200 transition hover:border-fuchsia-400/40 hover:bg-fuchsia-500/10"
+                    className={`rounded-xl border border-line bg-surface px-3 py-2.5 text-left text-sm leading-relaxed text-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[transform,border-color,background-color] duration-150 ease-out hover:border-fuchsia-400/40 hover:bg-surface-2 active:scale-[0.97] ${focusRing}`}
                   >
-                    <span className={`mr-1.5 text-xs font-semibold ${STYLE_META[a.style].color}`}>
+                    <span className={`mb-0.5 block text-xs font-semibold ${STYLE_META[a.style].color}`}>
                       {STYLE_META[a.style].icon} {STYLE_META[a.style].label}
                     </span>
-                    <br />
                     {a.text}
                   </button>
                 ))}
@@ -561,32 +597,36 @@ function Table({
                   {d.icon} {d.label} · {d.price} €
                 </button>
               ))}
-              <button onClick={() => setShowGifts(!showGifts)} className={buttonClasses("secondary", "sm")}>
-                🎁 Offrir un cadeau
+              <button
+                onClick={() => setShowGifts(!showGifts)}
+                aria-expanded={showGifts}
+                className={buttonClasses("secondary", "sm", "aria-expanded:border-fuchsia-400/40 aria-expanded:text-fuchsia-200")}
+              >
+                Offrir un cadeau
               </button>
               <button
                 onClick={() => apply(tryMove(state, h.id), `*${move.label}.*`)}
-                className={buttonClasses("danger", "sm")}
+                className={buttonClasses("danger", "sm", "tabular-nums")}
                 title="Gros gain si ça passe, grosse perte sinon"
               >
-                🔥 {move.label} · {chance}%
+                {move.label} · {chance}%
               </button>
             </div>
 
             {showGifts && (
-              <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="animate-fade grid gap-2 rounded-xl border border-line bg-white/[0.025] p-3 sm:grid-cols-2 lg:grid-cols-3">
                 {GIFTS.map((g) => (
                   <button
                     key={g.id}
                     disabled={state.money < g.price}
                     onClick={() => apply(giveGift(state, h.id, g.id), `*Tu lui tends un paquet : ${g.label.toLowerCase()}.*`)}
-                    className={buttonClasses("ghost", "sm", "justify-between border border-white/10")}
+                    className={buttonClasses("ghost", "sm", "justify-between border border-line text-fg")}
                   >
-                    <span>
+                    <span className="truncate">
                       {g.icon} {g.label}
-                      {g.spicy && <span className="ml-1 text-orange-400">🌶</span>}
+                      {g.spicy && <span className="ml-1 text-orange-300">🌶</span>}
                     </span>
-                    <span className="text-emerald-300">{g.price} €</span>
+                    <span className="tabular-nums text-emerald-300">{g.price} €</span>
                   </button>
                 ))}
               </div>

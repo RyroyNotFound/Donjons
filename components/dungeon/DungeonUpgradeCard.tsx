@@ -16,9 +16,9 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
 
 // Same colours as the header's resource pills (app/(game)/layout.tsx).
 const RESOURCE_COLOR: Record<ResourceKind, string> = {
-  wood: "text-emerald-300",
-  ore: "text-slate-300",
-  essence: "text-purple-300",
+  wood: "text-emerald-200",
+  ore: "text-fg-muted",
+  essence: "text-purple-200",
 };
 
 export function DungeonUpgradeCard({
@@ -40,48 +40,66 @@ export function DungeonUpgradeCard({
   const canAfford = !maxed && profile !== null && cost.every(([kind, amount]) => owned(kind) >= amount);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-display font-semibold text-slate-50">{track.name}</p>
-        <Badge tone={maxed ? "success" : "gold"}>
+    <Card className="flex flex-col">
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="font-semibold text-fg">{track.name}</h2>
+        <Badge tone={maxed ? "success" : "neutral"} className="tabular-nums">
           Nv. {level}/{track.maxLevel}
         </Badge>
       </div>
-      <p className="mt-1 text-sm text-slate-400">{track.description}</p>
-      <p className="mt-2 text-sm text-amber-300">Effet actuel : {track.effectLabel(level)}</p>
-      {!maxed && (
-        <>
-          <p className="mt-1 text-xs text-slate-500">Prochain niveau : {track.effectLabel(level + 1)}</p>
-          <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-              Coût du niveau {level + 1}
-            </p>
-            <ul className="mt-1.5 flex flex-wrap gap-1.5">
-              {cost.map(([kind, amount]) => {
-                const enough = owned(kind) >= amount;
-                return (
-                  <li
-                    key={kind}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm font-semibold ${
-                      enough ? `border-white/10 bg-white/5 ${RESOURCE_COLOR[kind]}` : "border-red-500/40 bg-red-500/10 text-red-300"
-                    }`}
-                    aria-label={`${RESOURCE_LABEL[kind]} : ${amount} requis, ${owned(kind)} possédé`}
-                  >
-                    <Icon name={kind} className="h-4 w-4" />
-                    {amount}
-                    <span className="text-xs font-normal opacity-70">
-                      {RESOURCE_LABEL[kind]} · {owned(kind)}/{amount}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+      <p className="mt-1 text-sm leading-relaxed text-fg-muted">{track.description}</p>
+
+      <dl className="mt-4 divide-y divide-line overflow-hidden rounded-lg border border-line bg-white/[0.025] text-sm">
+        <div className="px-3 py-2">
+          <dt className="text-xs text-fg-subtle">Effet actuel</dt>
+          <dd className="mt-0.5 tabular-nums text-fg">{track.effectLabel(level)}</dd>
+        </div>
+        {!maxed && (
+          <div className="px-3 py-2">
+            <dt className="text-xs text-fg-subtle">Prochain niveau</dt>
+            <dd className="mt-0.5 tabular-nums text-gold">{track.effectLabel(level + 1)}</dd>
           </div>
-        </>
+        )}
+      </dl>
+
+      {!maxed && (
+        <div className="mt-4">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
+            Coût du niveau <span className="tabular-nums">{level + 1}</span>
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {cost.map(([kind, amount]) => {
+              const enough = owned(kind) >= amount;
+              return (
+                <li
+                  key={kind}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-semibold tabular-nums ${
+                    enough ? `border-line bg-white/[0.04] ${RESOURCE_COLOR[kind]}` : "border-red-400/25 bg-red-400/10 text-red-300"
+                  }`}
+                  aria-label={`${RESOURCE_LABEL[kind]} : ${amount} requis, ${owned(kind)} possédé`}
+                >
+                  <Icon name={kind} className="h-4 w-4" />
+                  {amount}
+                  <span className="text-xs font-normal opacity-70">
+                    {RESOURCE_LABEL[kind]} · {owned(kind)}/{amount}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
-      <Button onClick={onUpgrade} disabled={maxed || upgrading || !canAfford} className="mt-3 w-full">
-        {maxed ? "Niveau maximum" : upgrading ? "Amélioration..." : canAfford ? "Améliorer" : "Ressources insuffisantes"}
-      </Button>
+
+      <div className="mt-auto pt-5">
+        <Button
+          variant={maxed || !canAfford ? "secondary" : "primary"}
+          onClick={onUpgrade}
+          disabled={maxed || upgrading || !canAfford}
+          className="w-full"
+        >
+          {maxed ? "Niveau maximum" : upgrading ? "Amélioration..." : canAfford ? "Améliorer" : "Ressources insuffisantes"}
+        </Button>
+      </div>
     </Card>
   );
 }

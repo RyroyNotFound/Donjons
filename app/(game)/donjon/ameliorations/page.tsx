@@ -30,27 +30,36 @@ export default function DungeonUpgradesPage() {
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <PageHeader
-        title="Améliorations du donjon"
-        subtitle="Dépensez les ressources récoltées en expédition pour renforcer votre donjon."
-      />
+      <div className="space-y-8">
+        <PageHeader
+          title="Améliorations du donjon"
+          subtitle="Dépensez les ressources récoltées en expédition pour renforcer votre donjon."
+        />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && (
+          <p role="alert" className="rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2 text-sm text-red-300">
+            {error}
+          </p>
+        )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {DUNGEON_UPGRADE_TRACKS.map((track) => (
-          <DungeonUpgradeCard
-            key={track.id}
-            track={track}
-            level={levels?.[track.id] ?? 0}
-            profile={profile}
-            upgrading={upgrading === track.id}
-            onUpgrade={() => upgrade(track.id)}
-          />
-        ))}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {DUNGEON_UPGRADE_TRACKS.map((track, i) => (
+            <div
+              key={track.id}
+              className="animate-rise grid"
+              style={{ "--delay": `${Math.min(i, 6) * 40}ms` } as React.CSSProperties}
+            >
+              <DungeonUpgradeCard
+                track={track}
+                level={levels?.[track.id] ?? 0}
+                profile={profile}
+                upgrading={upgrading === track.id}
+                onUpgrade={() => upgrade(track.id)}
+              />
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
     </PageTransition>
   );
 }

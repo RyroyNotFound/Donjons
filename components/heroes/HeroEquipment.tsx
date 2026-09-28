@@ -4,8 +4,10 @@ import { useState } from "react";
 import { itemTotalStats } from "@/lib/game/engine/items";
 import { formatStatBonus, ITEM_SLOT_LABEL } from "@/lib/game/statFormat";
 import { itemImpact, itemsForSlot, type HeroContext } from "@/lib/game/heroInsights";
-import { RARITY_BADGE, RARITY_LABEL } from "@/lib/ui/rarity";
+import { RARITY_LABEL, RARITY_TEXT } from "@/lib/ui/rarity";
+import { focusRing } from "@/lib/ui/a11y";
 import { Card } from "@/components/Card";
+import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { ItemCard } from "@/components/forge/ItemCard";
 import { ImpactBadge } from "@/components/heroes/ImpactBadge";
@@ -25,45 +27,58 @@ function SlotCard({ ctx, slot, busy, onEquip }: { ctx: HeroContext; slot: ItemSl
   const shown = all ? candidates : candidates.slice(0, SHOWN);
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-display font-semibold text-slate-50">{ITEM_SLOT_LABEL[slot]}</h2>
+    <Card className="space-y-4">
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <h2 className="font-semibold text-fg">{ITEM_SLOT_LABEL[slot]}</h2>
         {current && (
           <Button size="sm" variant="ghost" onClick={() => onEquip(slot, null)} disabled={busy}>
             Retirer
           </Button>
         )}
       </div>
-      {current ? <ItemCard item={current} /> : <p className="text-sm text-red-300">Emplacement vide.</p>}
-
-      <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {candidates.length ? "Autres objets disponibles — meilleur d'abord" : "Aucun autre objet disponible"}
-      </p>
-      <ul className="space-y-2">
-        {shown.map(({ item, impact }) => (
-          <li key={item.id} className={`flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 ${RARITY_BADGE[item.rarity]}`}>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {item.name}
-                {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""}
-                <span className="ml-1 text-[11px] opacity-70">
-                  {RARITY_LABEL[item.rarity]} · palier {item.tier ?? 1}
-                </span>
-              </p>
-              <p className="truncate text-[11px] text-slate-400">{formatStatBonus(itemTotalStats(item))}</p>
-              <ImpactBadge impact={impact} />
-            </div>
-            <Button size="sm" onClick={() => onEquip(slot, item.id)} disabled={busy}>
-              Équiper
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {candidates.length > SHOWN && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="mt-2 text-xs text-amber-400 hover:underline">
-          {all ? "Réduire" : `Voir les ${candidates.length - SHOWN} autres`}
-        </button>
+      {current ? (
+        <ItemCard item={current} />
+      ) : (
+        <p className="rounded-lg border border-dashed border-red-400/30 px-3 py-2.5 text-sm text-red-300">Emplacement vide.</p>
       )}
+
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
+          {candidates.length ? "Autres objets disponibles — meilleur d'abord" : "Aucun autre objet disponible"}
+        </p>
+        {shown.length > 0 && (
+          <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-white/[0.02]">
+            {shown.map(({ item, impact }) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <div className="min-w-0 space-y-1">
+                  <p className={`truncate text-sm font-medium ${RARITY_TEXT[item.rarity]}`}>
+                    {item.name}
+                    {item.enhanceLevel ? <span className="tabular-nums"> +{item.enhanceLevel}</span> : ""}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Badge tone={item.rarity}>{RARITY_LABEL[item.rarity]}</Badge>
+                    <span className="text-[11px] tabular-nums text-fg-subtle">palier {item.tier ?? 1}</span>
+                  </div>
+                  <p className="truncate text-[11px] tabular-nums text-fg-muted">{formatStatBonus(itemTotalStats(item))}</p>
+                  <ImpactBadge impact={impact} />
+                </div>
+                <Button size="sm" onClick={() => onEquip(slot, item.id)} disabled={busy}>
+                  Équiper
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {candidates.length > SHOWN && (
+          <button
+            type="button"
+            onClick={() => setAll((v) => !v)}
+            className={`mt-2 rounded text-xs text-gold transition-colors duration-150 ease-out hover:text-gold-bright ${focusRing}`}
+          >
+            {all ? "Réduire" : `Voir les ${candidates.length - SHOWN} autres`}
+          </button>
+        )}
+      </div>
     </Card>
   );
 }

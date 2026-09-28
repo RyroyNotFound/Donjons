@@ -21,12 +21,12 @@ export function Chip({
       aria-pressed={selected}
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-lg border px-3 py-1.5 text-sm transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${focusRing} ${
+      className={`rounded-lg border px-3 py-1.5 text-sm transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 ${focusRing} ${
         fullWidth ? "block w-full text-left" : ""
       } ${
         selected
-          ? "border-amber-500 bg-amber-500/20 text-amber-300"
-          : "border-white/10 text-slate-300 hover:bg-white/5"
+          ? "border-gold/45 bg-gold/10 text-gold"
+          : "border-line text-fg-muted hover:border-line-strong hover:bg-white/[0.04] hover:text-fg"
       } ${className}`}
     >
       {children}

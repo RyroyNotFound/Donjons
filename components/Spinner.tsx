@@ -5,11 +5,12 @@ export function Spinner({ label }: { label?: string }) {
       role="status"
       aria-live="polite"
     >
+      {/* Fast spin reads as a faster load. */}
       <div
-        className="h-10 w-10 animate-spin rounded-full border-2 border-amber-500/30 border-t-amber-400"
+        className="h-6 w-6 animate-[spin_600ms_linear_infinite] rounded-full border-2 border-white/10 border-t-gold"
         aria-hidden
       />
-      {label ? <p className="text-sm text-slate-400">{label}</p> : <span className="sr-only">Chargement…</span>}
+      {label ? <p className="text-sm text-fg-subtle">{label}</p> : <span className="sr-only">Chargement…</span>}
     </div>
   );
 }

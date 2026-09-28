@@ -16,6 +16,7 @@ import {
   tavernStateFor,
 } from "@/lib/game/tavern";
 import { RARITY_LABEL } from "@/lib/ui/rarity";
+import { focusRing } from "@/lib/ui/a11y";
 import { Card, type CardAccent } from "@/components/Card";
 import { Badge, type BadgeTone } from "@/components/Badge";
 import { Button } from "@/components/Button";
@@ -26,10 +27,10 @@ import { Spinner } from "@/components/Spinner";
 import type { Item, TavernNpc, TavernNpcKind, TavernNpcRarity, TavernOffer, TavernReward, UserProfile } from "@/types/game";
 
 const KIND_LABEL: Record<TavernNpcKind, string> = {
-  marchand: "🪙 Marchand",
-  conteur: "📖 Conteur",
-  bienfaiteur: "🎁 Bienfaiteur",
-  parieur: "🎲 Parieur",
+  marchand: "Marchand",
+  conteur: "Conteur",
+  bienfaiteur: "Bienfaiteur",
+  parieur: "Parieur",
 };
 
 const NPC_RARITY_LABEL: Record<TavernNpcRarity, string> = {
@@ -133,14 +134,15 @@ function TavernView({
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <PageHeader
           title="Taverne de la Chope-Fendue"
           subtitle="Un nouveau visiteur s'installe au comptoir toutes les 30 minutes."
           action={
-            <Badge tone="gold" className="text-sm">
-              ⏳ Prochain visiteur dans {formatCountdown(slotEndsAt(slot) - now)}
-            </Badge>
+            <p className="inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-xs text-fg-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-gold" aria-hidden />
+              Prochain visiteur dans <span className="font-semibold tabular-nums text-fg">{formatCountdown(slotEndsAt(slot) - now)}</span>
+            </p>
           }
         />
         <VisitorCard
@@ -210,7 +212,7 @@ function VisitorCard({
     <Card accent={NPC_RARITY_ACCENT[npc.rarity]} textured>
       <div className="flex flex-col gap-5 sm:flex-row">
         <div className="flex shrink-0 flex-col items-center gap-2 sm:w-40">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full border border-amber-500/30 bg-black/30 text-6xl shadow-inner">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full border border-line-strong bg-black/25 text-6xl shadow-[inset_0_2px_8px_rgb(0_0_0/0.4)]">
             <span aria-hidden>{npc.portrait}</span>
           </div>
           <Badge tone={NPC_RARITY_TONE[npc.rarity]}>{NPC_RARITY_LABEL[npc.rarity]}</Badge>
@@ -218,20 +220,20 @@ function VisitorCard({
 
         <div className="min-w-0 flex-1 space-y-4">
           <div>
-            <p className="font-display text-xl font-semibold text-slate-50">{npc.name}</p>
-            <p className="text-xs uppercase tracking-wide text-slate-500">
+            <p className="text-lg font-semibold text-fg">{npc.name}</p>
+            <p className="mt-0.5 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
               {npc.title} · {KIND_LABEL[npc.kind]}
             </p>
           </div>
 
           <Panel tone="highlight">
-            <p className="text-sm italic text-amber-100">« {npc.greeting} »</p>
+            <p className="text-sm italic leading-relaxed text-fg">« {npc.greeting} »</p>
           </Panel>
 
           {story.length > 0 && (
             <div className="space-y-3">
               {story.slice(0, storyStep).map((paragraph, i) => (
-                <p key={i} className="text-sm leading-relaxed text-slate-300">
+                <p key={i} className="animate-rise border-l-2 border-line-strong pl-3 text-sm leading-relaxed text-fg-muted">
                   {paragraph}
                 </p>
               ))}
@@ -244,43 +246,49 @@ function VisitorCard({
                   {storyStep === 0 ? "Écouter l'histoire" : "Continuer…"}
                 </Button>
               )}
-              {storyAtEnd && !npc.storyLoops && <p className="text-xs text-slate-500">— Fin de l&apos;histoire —</p>}
+              {storyAtEnd && !npc.storyLoops && <p className="text-xs text-fg-faint">— Fin de l&apos;histoire —</p>}
             </div>
           )}
 
           {showOffers && (
             <div className="space-y-2">
               {npc.offerMode === "pickOne" && npc.offers!.length > 1 && (
-                <p className="text-xs text-slate-400">Un seul choix possible.</p>
+                <p className="text-xs text-fg-subtle">Un seul choix possible.</p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {npc.offers!.map((offer) => {
                   const blocked = offerBlockedReason(npc, offer, claimedOfferIds);
                   const affordable = canAffordOffer(profile, offer);
                   return (
-                    <Panel key={offer.id} tone={claimedOfferIds.includes(offer.id) ? "owned" : "neutral"} dim={!!blocked && !claimedOfferIds.includes(offer.id)}>
-                      <p className="font-semibold text-slate-100">{offer.label}</p>
-                      {offer.description && <p className="text-xs text-slate-400">{offer.description}</p>}
-                      <p className="mt-1 text-xs text-emerald-300">
+                    <Panel
+                      key={offer.id}
+                      tone={claimedOfferIds.includes(offer.id) ? "owned" : "neutral"}
+                      dim={!!blocked && !claimedOfferIds.includes(offer.id)}
+                      className="flex flex-col"
+                    >
+                      <p className="font-semibold text-fg">{offer.label}</p>
+                      {offer.description && <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{offer.description}</p>}
+                      <p className="mt-2 text-xs tabular-nums text-emerald-300">
                         {offer.winChance !== undefined ? `Gain (${Math.round(offer.winChance * 100)} %) : ` : "Reçu : "}
                         {formatReward(offer.reward)}
                       </p>
                       {offer.randomGoldCost && (
-                        <p className={`text-xs ${affordable ? "text-amber-300" : "text-red-400"}`}>Prix : ??? or</p>
+                        <p className={`text-xs tabular-nums ${affordable ? "text-amber-300" : "text-red-300"}`}>Prix : ??? or</p>
                       )}
                       {offer.cost && (
-                        <p className={`text-xs ${affordable ? "text-amber-300" : "text-red-400"}`}>
+                        <p className={`text-xs tabular-nums ${affordable ? "text-amber-300" : "text-red-300"}`}>
                           {offer.winChance !== undefined ? "Mise" : "Prix"} : {formatTavernAmount(offer.cost)}
                         </p>
                       )}
-                      <Button
-                        size="sm"
-                        className="mt-2"
-                        disabled={!!blocked || !affordable || busy !== null}
-                        onClick={() => take(offer)}
-                      >
-                        {blocked ?? (busy === offer.id ? "..." : actionLabel(npc.kind))}
-                      </Button>
+                      <div className="mt-auto pt-3">
+                        <Button
+                          className="w-full sm:w-auto"
+                          disabled={!!blocked || !affordable || busy !== null}
+                          onClick={() => take(offer)}
+                        >
+                          {blocked ?? (busy === offer.id ? "..." : actionLabel(npc.kind))}
+                        </Button>
+                      </div>
                     </Panel>
                   );
                 })}
@@ -289,7 +297,16 @@ function VisitorCard({
           )}
 
           {message && (
-            <p className={`text-sm ${message.tone === "success" ? "text-emerald-300" : "text-red-400"}`}>{message.text}</p>
+            <p
+              role="status"
+              className={`animate-fade rounded-lg border px-3 py-2 text-sm ${
+                message.tone === "success"
+                  ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                  : "border-red-400/25 bg-red-400/10 text-red-300"
+              }`}
+            >
+              {message.text}
+            </p>
           )}
         </div>
       </div>
@@ -310,8 +327,8 @@ function Codex({ metNpcIds }: { metNpcIds: string[] }) {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold text-slate-50">Registre des visiteurs</h2>
-        <p className="text-xs text-slate-500">
+        <h2 className="font-semibold text-fg">Registre des visiteurs</h2>
+        <p className="text-xs tabular-nums text-fg-subtle">
           {metNpcIds.length} / {TAVERN_NPCS.length} rencontrés
         </p>
       </div>
@@ -325,12 +342,13 @@ function Codex({ metNpcIds }: { metNpcIds: string[] }) {
               disabled={!met}
               onClick={() => setOpenId(openId === npc.id ? null : npc.id)}
               title={met ? `${npc.name} — ${npc.title}` : "Inconnu"}
-              className={`flex aspect-square items-center justify-center rounded-lg border text-2xl transition ${
+              aria-pressed={met ? openId === npc.id : undefined}
+              className={`flex aspect-square items-center justify-center rounded-lg border text-2xl transition-[transform,background-color,border-color] duration-150 ease-out active:scale-[0.97] disabled:cursor-not-allowed ${focusRing} ${
                 openId === npc.id
-                  ? "border-amber-500 bg-amber-500/20"
+                  ? "border-gold/45 bg-gold/10"
                   : met
-                    ? "border-white/10 bg-white/5 hover:bg-white/10"
-                    : "border-white/5 bg-black/30 text-slate-600"
+                    ? "border-line bg-surface hover:border-line-strong hover:bg-surface-2"
+                    : "border-line bg-black/20 text-base text-fg-faint"
               }`}
             >
               {met ? npc.portrait : "?"}
@@ -339,13 +357,16 @@ function Codex({ metNpcIds }: { metNpcIds: string[] }) {
         })}
       </div>
       {open && (
-        <Panel>
-          <p className="font-semibold text-slate-100">
-            {open.portrait} {open.name} <span className="text-xs font-normal text-slate-500">· {open.title} · {KIND_LABEL[open.kind]}</span>
+        <Panel className="animate-fade">
+          <p className="font-semibold text-fg">
+            {open.portrait} {open.name}{" "}
+            <span className="text-xs font-normal text-fg-subtle">
+              · {open.title} · {KIND_LABEL[open.kind]}
+            </span>
           </p>
-          <p className="mt-1 text-sm italic text-amber-100">« {open.greeting} »</p>
+          <p className="mt-1 text-sm italic text-fg">« {open.greeting} »</p>
           {open.story?.map((paragraph, i) => (
-            <p key={i} className="mt-2 text-sm leading-relaxed text-slate-300">
+            <p key={i} className="mt-2 text-sm leading-relaxed text-fg-muted">
               {paragraph}
             </p>
           ))}

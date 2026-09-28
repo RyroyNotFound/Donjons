@@ -15,11 +15,21 @@ import { ImpactBadge } from "@/components/heroes/ImpactBadge";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
-import { Panel } from "@/components/Panel";
+import { NavIcon } from "@/components/NavIcon";
 import { inputClass, selectClass } from "@/components/Field";
+import { focusRing } from "@/lib/ui/a11y";
 import type { ArenaAbilityTag, Hero, HeroStats, RaidEffectTag, Role } from "@/types/game";
 
 type Toggle = (kind: "spell" | "mastery", refId: string, equip: boolean) => void;
+
+/** Scrollable divided list holding the spell / mastery rows. */
+const LIST =
+  "panel-scrollbar max-h-[36rem] divide-y divide-line overflow-y-auto rounded-lg border border-line bg-white/[0.02]";
+
+/** Row of that list; equipped rows get a faint gold wash. */
+function rowClass(equipped: boolean) {
+  return `flex items-center justify-between gap-3 px-3 py-3 ${equipped ? "bg-gold/[0.05]" : ""}`;
+}
 
 /** Accent- and case-insensitive substring match on a name + description. */
 function matchesSearch(query: string, ...texts: string[]): boolean {
@@ -34,18 +44,31 @@ function FilterToggle({ open, active, onToggle }: { open: boolean; active: numbe
     <button
       type="button"
       onClick={onToggle}
-      className={`shrink-0 rounded-lg border px-3 text-sm ${active ? "border-amber-500/60 text-amber-300" : "border-white/10 text-slate-300 hover:bg-white/5"}`}
+      aria-expanded={open}
+      className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm transition-[transform,background-color,border-color,color] duration-150 ease-out active:scale-[0.97] ${focusRing} ${
+        active
+          ? "border-gold/45 bg-gold/10 text-gold"
+          : "border-line-strong text-fg-muted hover:bg-white/[0.04] hover:text-fg"
+      }`}
     >
-      Filtres{active ? ` (${active})` : ""} {open ? "▴" : "▾"}
+      Filtres{active ? <span className="tabular-nums"> ({active})</span> : ""}
+      <NavIcon
+        name="chevron-right"
+        className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${open ? "-rotate-90" : "rotate-90"}`}
+      />
     </button>
   );
 }
 
 function NoneOwned({ what }: { what: string }) {
   return (
-    <p className="text-sm text-slate-500">
+    <p className="text-sm text-fg-subtle">
       Aucun{what === "maîtrise" ? "e" : ""} {what} obtenu{what === "maîtrise" ? "e" : ""} — voir l&apos;
-      <Link href="/heros/inventaire" transitionTypes={["nav-forward"]} className="text-amber-400 underline">
+      <Link
+        href="/heros/inventaire"
+        transitionTypes={["nav-forward"]}
+        className="text-gold transition-colors duration-150 ease-out hover:text-gold-bright"
+      >
         inventaire
       </Link>
       .
@@ -96,66 +119,69 @@ export function SpellList({
     .sort((a, b) => Number(hero.equippedSpellIds.includes(b.id)) - Number(hero.equippedSpellIds.includes(a.id)));
 
   return (
-    <Card>
-      <h2 className="font-display mb-1 font-semibold text-slate-50">Sorts</h2>
-      <p className="mb-3 text-sm text-slate-400">
-        Emplacements : {hero.equippedSpellIds.length}/{SPELL_SLOTS} — utilisables sur n&apos;importe quel héros ; la
-        classe assortie donne un bonus de puissance. Valeurs calculées avec l&apos;attaque de ce héros (
-        {Math.max(stats.atkPhys, stats.atkMag)}), avant la défense ennemie. En donjon, seul le 1er sort équipé agit.
-      </p>
+    <Card className="space-y-4">
+      <div>
+        <h2 className="font-semibold text-fg">Sorts</h2>
+        <p className="mt-1 text-sm leading-relaxed text-fg-muted">
+          Emplacements : <span className="tabular-nums">{hero.equippedSpellIds.length}/{SPELL_SLOTS}</span> — utilisables sur
+          n&apos;importe quel héros ; la classe assortie donne un bonus de puissance. Valeurs calculées avec l&apos;attaque de ce
+          héros (<span className="tabular-nums">{Math.max(stats.atkPhys, stats.atkMag)}</span>), avant la défense ennemie. En
+          donjon, seul le 1er sort équipé agit.
+        </p>
+      </div>
       {owned.length === 0 ? (
         <NoneOwned what="sort" />
       ) : (
-        <>
-          <div className="mb-3 flex gap-2">
+        <div className="space-y-3">
+          <div className="flex gap-2">
             <input className={inputClass} placeholder="Rechercher un sort…" value={search} onChange={(e) => setSearch(e.target.value)} />
             <FilterToggle open={filtersOpen} active={activeFilters} onToggle={() => setFiltersOpen((v) => !v)} />
           </div>
           {filtersOpen && (
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <select className={selectClass} value={element} onChange={(e) => setElement(e.target.value)} aria-label="Élément">
-              <option value="all">Tous les éléments</option>
-              {ELEMENTS.map((el) => (
-                <option key={el} value={el}>
-                  {ELEMENT_ICON[el]} {ELEMENT_LABEL[el]}
-                </option>
-              ))}
-              <option value="none">Neutre</option>
-            </select>
-            <select className={selectClass} value={classFilter} onChange={(e) => setClassFilter(e.target.value)} aria-label="Classe">
-              <option value="all">Toutes les classes</option>
-              {hero.classId && <option value="mine">★ Bonus de classe</option>}
-              {CLASSES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select className={selectClass} value={raidTag} onChange={(e) => setRaidTag(e.target.value)} aria-label="Effet en donjon">
-              <option value="all">Tout effet en donjon</option>
-              {RAID_TAGS.map((tag) => (
-                <option key={tag} value={tag}>
-                  {RAID_EFFECT_NAME[tag]}
-                </option>
-              ))}
-            </select>
-            <select className={selectClass} value={arenaTag} onChange={(e) => setArenaTag(e.target.value)} aria-label="Effet en expédition">
-              <option value="all">Tout effet en expédition</option>
-              {ARENA_TAGS.map((tag) => (
-                <option key={tag} value={tag}>
-                  {ARENA_SPELL_TAGS[tag].icon} {ARENA_SPELL_TAGS[tag].label}
-                </option>
-              ))}
-            </select>
-            <Chip selected={equippedOnly} onClick={() => setEquippedOnly((v) => !v)} className="col-span-2">
-              Équipés uniquement
-            </Chip>
-          </div>
+            <div className="grid grid-cols-2 gap-2">
+              <select className={selectClass} value={element} onChange={(e) => setElement(e.target.value)} aria-label="Élément">
+                <option value="all">Tous les éléments</option>
+                {ELEMENTS.map((el) => (
+                  <option key={el} value={el}>
+                    {ELEMENT_ICON[el]} {ELEMENT_LABEL[el]}
+                  </option>
+                ))}
+                <option value="none">Neutre</option>
+              </select>
+              <select className={selectClass} value={classFilter} onChange={(e) => setClassFilter(e.target.value)} aria-label="Classe">
+                <option value="all">Toutes les classes</option>
+                {hero.classId && <option value="mine">★ Bonus de classe</option>}
+                {CLASSES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <select className={selectClass} value={raidTag} onChange={(e) => setRaidTag(e.target.value)} aria-label="Effet en donjon">
+                <option value="all">Tout effet en donjon</option>
+                {RAID_TAGS.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {RAID_EFFECT_NAME[tag]}
+                  </option>
+                ))}
+              </select>
+              <select className={selectClass} value={arenaTag} onChange={(e) => setArenaTag(e.target.value)} aria-label="Effet en expédition">
+                <option value="all">Tout effet en expédition</option>
+                {ARENA_TAGS.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {ARENA_SPELL_TAGS[tag].icon} {ARENA_SPELL_TAGS[tag].label}
+                  </option>
+                ))}
+              </select>
+              <Chip selected={equippedOnly} onClick={() => setEquippedOnly((v) => !v)} className="col-span-2">
+                Équipés uniquement
+              </Chip>
+            </div>
           )}
-          <p className="mb-2 text-xs text-slate-500">
+          <p className="text-xs tabular-nums text-fg-subtle">
             {shown.length} / {owned.length} sort{owned.length > 1 ? "s" : ""}
           </p>
-          <div className="max-h-[36rem] space-y-2 overflow-y-auto pr-1">
+          <ul className={LIST}>
             {shown.map((spell) => {
               const equipped = hero.equippedSpellIds.includes(spell.id);
               const full = !equipped && hero.equippedSpellIds.length >= SPELL_SLOTS;
@@ -164,40 +190,49 @@ export function SpellList({
               const arena = ARENA_SPELL_TAGS[spell.arenaAbilityTag];
               const power = arenaSpellPower(spell, hero.classId, ranks[spell.id] ?? 1);
               return (
-                <Panel key={spell.id} tone={equipped ? "highlight" : "neutral"} className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-slate-100">
+                <li key={spell.id} className={rowClass(equipped)}>
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium text-fg">
                       {spell.name}{" "}
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs font-normal tabular-nums text-fg-subtle">
                         Rang {ranks[spell.id] ?? 1}/{MAX_COMPONENT_RANK}
                       </span>
-                      {classMatch && <span className="ml-1 text-xs text-emerald-400">★ bonus de classe</span>}
+                      {classMatch && <span className="ml-1.5 text-xs font-normal text-emerald-300">★ bonus de classe</span>}
                       {spell.element && (
-                        <span className="ml-1 text-xs text-slate-300">
+                        <span className="ml-1.5 text-xs font-normal text-fg-muted">
                           {ELEMENT_ICON[spell.element]} {ELEMENT_LABEL[spell.element]}
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-slate-400">{spell.description}</p>
-                    <p className={`mt-0.5 text-xs ${equipped && !raidActive ? "text-slate-500" : "text-amber-400"}`} title={RAID_EFFECT_LABEL[spell.raidEffectTag]}>
+                    <p className="text-xs leading-relaxed text-fg-muted">{spell.description}</p>
+                    <p
+                      className={`text-xs ${equipped && !raidActive ? "text-fg-subtle" : "text-gold"}`}
+                      title={RAID_EFFECT_LABEL[spell.raidEffectTag]}
+                    >
                       Donjon · {RAID_EFFECT_NAME[spell.raidEffectTag]} : {describeRaidSpellValue(spell.raidEffectTag, classMatch, stats, role)}
-                      {raidActive && <span className="ml-1 text-emerald-400">(actif)</span>}
+                      {raidActive && <span className="ml-1 text-emerald-300">(actif)</span>}
                       {equipped && !raidActive && <span className="ml-1">(inactif : seul le 1er sort équipé agit en donjon)</span>}
                     </p>
-                    <p className="text-xs text-sky-400" title={arena.description}>
-                      Arène · {arena.icon} {arena.label} : {describeArenaSpellValue(spell.arenaAbilityTag, Math.max(stats.atkPhys, stats.atkMag), stats.hp, power)}{" "}
-                      <span className="text-slate-500">(toutes les {String(arena.cooldown).replace(".", ",")} s)</span>
+                    <p className="text-xs text-sky-300" title={arena.description}>
+                      Arène · {arena.icon} {arena.label} :{" "}
+                      {describeArenaSpellValue(spell.arenaAbilityTag, Math.max(stats.atkPhys, stats.atkMag), stats.hp, power)}{" "}
+                      <span className="text-fg-subtle">(toutes les {String(arena.cooldown).replace(".", ",")} s)</span>
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => onToggle("spell", spell.id, !equipped)} disabled={busy || full}>
+                  <Button
+                    size="sm"
+                    variant={equipped ? "secondary" : "primary"}
+                    onClick={() => onToggle("spell", spell.id, !equipped)}
+                    disabled={busy || full}
+                  >
                     {equipped ? "Retirer" : "Équiper"}
                   </Button>
-                </Panel>
+                </li>
               );
             })}
-            {shown.length === 0 && <p className="text-sm text-slate-500">Aucun sort ne correspond aux filtres.</p>}
-          </div>
-        </>
+            {shown.length === 0 && <li className="px-3 py-3 text-sm text-fg-subtle">Aucun sort ne correspond aux filtres.</li>}
+          </ul>
+        </div>
       )}
     </Card>
   );
@@ -256,67 +291,74 @@ export function MasteryList({
     );
 
   return (
-    <Card>
-      <h2 className="font-display mb-1 font-semibold text-slate-50">Maîtrises</h2>
-      <p className="mb-3 text-sm text-slate-400">
-        Emplacements : {hero.equippedMasteryIds.length}/{MASTERY_SLOTS} — bonus de stats passifs. Triées par gain de puissance
-        pour ce héros ; valeurs au rang possédé.
-      </p>
+    <Card className="space-y-4">
+      <div>
+        <h2 className="font-semibold text-fg">Maîtrises</h2>
+        <p className="mt-1 text-sm leading-relaxed text-fg-muted">
+          Emplacements : <span className="tabular-nums">{hero.equippedMasteryIds.length}/{MASTERY_SLOTS}</span> — bonus de
+          stats passifs. Triées par gain de puissance pour ce héros ; valeurs au rang possédé.
+        </p>
+      </div>
       {owned.length === 0 ? (
         <NoneOwned what="maîtrise" />
       ) : (
-        <>
-          <div className="mb-3 flex gap-2">
+        <div className="space-y-3">
+          <div className="flex gap-2">
             <input className={inputClass} placeholder="Rechercher une maîtrise…" value={search} onChange={(e) => setSearch(e.target.value)} />
             <FilterToggle open={filtersOpen} active={activeFilters} onToggle={() => setFiltersOpen((v) => !v)} />
           </div>
           {filtersOpen && (
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <select className={`${selectClass} col-span-2`} value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Statistique">
-              <option value="all">Toutes les statistiques</option>
-              {MASTERY_STAT_GROUPS.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-            <Chip selected={noMalus} onClick={() => setNoMalus((v) => !v)}>
-              Sans malus
-            </Chip>
-            <Chip selected={equippedOnly} onClick={() => setEquippedOnly((v) => !v)}>
-              Équipées uniquement
-            </Chip>
-          </div>
+            <div className="grid grid-cols-2 gap-2">
+              <select className={`${selectClass} col-span-2`} value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Statistique">
+                <option value="all">Toutes les statistiques</option>
+                {MASTERY_STAT_GROUPS.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+              <Chip selected={noMalus} onClick={() => setNoMalus((v) => !v)}>
+                Sans malus
+              </Chip>
+              <Chip selected={equippedOnly} onClick={() => setEquippedOnly((v) => !v)}>
+                Équipées uniquement
+              </Chip>
+            </div>
           )}
-          <p className="mb-2 text-xs text-slate-500">
+          <p className="text-xs tabular-nums text-fg-subtle">
             {shown.length} / {owned.length} maîtrise{owned.length > 1 ? "s" : ""}
           </p>
-          <div className="max-h-[36rem] space-y-2 overflow-y-auto pr-1">
+          <ul className={LIST}>
             {shown.map((mastery) => {
               const equipped = hero.equippedMasteryIds.includes(mastery.id);
               const full = !equipped && hero.equippedMasteryIds.length >= MASTERY_SLOTS;
               return (
-                <Panel key={mastery.id} tone={equipped ? "highlight" : "neutral"} className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-slate-100">
+                <li key={mastery.id} className={rowClass(equipped)}>
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium text-fg">
                       {mastery.name}{" "}
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs font-normal tabular-nums text-fg-subtle">
                         Rang {ranks[mastery.id] ?? 1}/{MAX_COMPONENT_RANK}
                       </span>
                     </p>
-                    <p className="text-xs text-amber-400">{formatStatBonus(scaled(mastery.statBonus, ranks[mastery.id] ?? 1))}</p>
-                    <p className="mb-1 text-xs text-slate-500">{mastery.description}</p>
+                    <p className="text-xs tabular-nums text-gold">{formatStatBonus(scaled(mastery.statBonus, ranks[mastery.id] ?? 1))}</p>
+                    <p className="pb-1 text-xs leading-relaxed text-fg-subtle">{mastery.description}</p>
                     <ImpactBadge impact={impacts.get(mastery.id)!} kept={equipped} />
                   </div>
-                  <Button size="sm" onClick={() => onToggle("mastery", mastery.id, !equipped)} disabled={busy || full}>
+                  <Button
+                    size="sm"
+                    variant={equipped ? "secondary" : "primary"}
+                    onClick={() => onToggle("mastery", mastery.id, !equipped)}
+                    disabled={busy || full}
+                  >
                     {equipped ? "Retirer" : "Équiper"}
                   </Button>
-                </Panel>
+                </li>
               );
             })}
-            {shown.length === 0 && <p className="text-sm text-slate-500">Aucune maîtrise ne correspond aux filtres.</p>}
-          </div>
-        </>
+            {shown.length === 0 && <li className="px-3 py-3 text-sm text-fg-subtle">Aucune maîtrise ne correspond aux filtres.</li>}
+          </ul>
+        </div>
       )}
     </Card>
   );

@@ -1,23 +1,25 @@
 import { focusRing } from "@/lib/ui/a11y";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
-export type ButtonSize = "sm" | "md";
+export type ButtonSize = "sm" | "md" | "lg";
 
+/** Solid gold fill with a hairline top highlight — the one loud color in the UI. */
 export const PRIMARY_GRADIENT =
-  "bg-gradient-to-b from-amber-400 to-amber-600 text-[var(--ink-950)] shadow-md shadow-amber-950/40 hover:from-amber-300 hover:to-amber-500";
+  "bg-gold text-canvas shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_1px_2px_rgb(0_0_0/0.4)] hover:bg-gold-bright";
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
   primary: PRIMARY_GRADIENT,
   secondary:
-    "border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 hover:border-white/25",
+    "border border-line-strong bg-surface-2 text-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] hover:bg-surface-3",
   danger:
-    "bg-gradient-to-b from-red-500 to-red-700 text-white shadow-md shadow-red-950/40 hover:from-red-400 hover:to-red-600",
-  ghost: "text-slate-400 hover:text-slate-100 hover:bg-white/5",
+    "bg-red-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_1px_2px_rgb(0_0_0/0.4)] hover:bg-red-500",
+  ghost: "text-fg-muted hover:bg-white/[0.05] hover:text-fg",
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-xs",
-  md: "px-4 py-2 text-sm",
+  sm: "h-8 px-3 text-xs",
+  md: "h-10 px-4 text-sm",
+  lg: "h-12 px-5 text-base",
 };
 
 export function buttonClasses(
@@ -25,7 +27,7 @@ export function buttonClasses(
   size: ButtonSize = "md",
   className = "",
 ) {
-  return `inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold tracking-wide transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${focusRing} ${VARIANT_STYLES[variant]} ${SIZE_STYLES[size]} ${className}`;
+  return `inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-semibold transition-[transform,background-color,border-color,color,opacity] duration-150 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 ${focusRing} ${VARIANT_STYLES[variant]} ${SIZE_STYLES[size]} ${className}`;
 }
 
 export function Button({

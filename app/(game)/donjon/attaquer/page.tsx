@@ -18,6 +18,9 @@ import { Badge } from "@/components/Badge";
 import { Chip } from "@/components/Chip";
 import { PageTransition } from "@/components/PageTransition";
 import { EmptyState } from "@/components/EmptyState";
+import { Icon } from "@/components/Icon";
+import { NavIcon } from "@/components/NavIcon";
+import { focusRing } from "@/lib/ui/a11y";
 import type { DungeonTarget } from "@/app/api/dungeon/targets/route";
 import type { Element, RaidView } from "@/types/game";
 
@@ -29,31 +32,43 @@ function IntelLine({ target }: { target: DungeonTarget }) {
   const threats = [...new Set([...i.trapElements, ...i.monsterElements])];
   const bounty = conquestBountyPreview(i.defenseLevel, target.isBot);
   return (
-    <div className="mt-1 space-y-0.5 text-xs text-slate-400">
-      <p>
-        🛡️ Niveau de défense {i.defenseLevel} · {i.roomCount} salle(s) · {i.treasureRooms} trésor(s)
+    <div className="mt-3 space-y-1.5 text-xs leading-relaxed tabular-nums text-fg-muted">
+      <p className="flex items-start gap-1.5">
+        <Icon name="shield" className="mt-px h-3.5 w-3.5 shrink-0" />
+        <span>
+          Niveau de défense <span className="font-semibold text-fg">{i.defenseLevel}</span> · {i.roomCount} salle(s) ·{" "}
+          {i.treasureRooms} trésor(s)
+        </span>
       </p>
-      <p className="text-amber-200/80">
-        💰 Chaque salle au trésor ({i.treasureRooms}) :{" "}
-        {target.isBot
-          ? `${Math.round(getBotDungeon(target.defenderId).loot.gold / MAX_TREASURE_ROOMS)} or + ressources`
-          : `¼ de ce qui peut lui être volé + ${treasureRoomBonus(i.defenseLevel).gold} or et ${treasureRoomBonus(i.defenseLevel).resources.wood} de chaque ressource`}
+      <p className="text-fg-subtle">
+        {i.traps} piège(s) en {i.trapRooms} salle(s) · {i.monsters} monstre(s){i.hasBoss ? " dont un boss" : ""}
+        {i.garrison > 0 ? ` · garnison ×${i.garrison}` : ""}
       </p>
-      <p className="text-amber-200/80">
-        🏆 Prime de conquête : objet palier {bounty.tier}, {bounty.forgeShards} éclats
-        {bounty.gold > 0 ? `, ${bounty.gold} or` : ""}
-      </p>
-      <p>
-        ⚠️ {i.traps} piège(s) en {i.trapRooms} salle(s) · 👹 {i.monsters} monstre(s){i.hasBoss ? " dont un boss" : ""}
-        {i.garrison > 0 ? ` · 🧍 garnison ×${i.garrison}` : ""}
-      </p>
+      <div className="space-y-1 border-t border-line pt-1.5 text-amber-200/90">
+        <p className="flex items-start gap-1.5">
+          <Icon name="treasure" className="mt-px h-3.5 w-3.5 shrink-0" />
+          <span>
+            Chaque salle au trésor ({i.treasureRooms}) :{" "}
+            {target.isBot
+              ? `${Math.round(getBotDungeon(target.defenderId).loot.gold / MAX_TREASURE_ROOMS)} or + ressources`
+              : `¼ de ce qui peut lui être volé + ${treasureRoomBonus(i.defenseLevel).gold} or et ${treasureRoomBonus(i.defenseLevel).resources.wood} de chaque ressource`}
+          </span>
+        </p>
+        <p className="flex items-start gap-1.5">
+          <NavIcon name="trophy" className="mt-px h-3.5 w-3.5 shrink-0" />
+          <span>
+            Prime de conquête : objet palier {bounty.tier}, {bounty.forgeShards} éclats
+            {bounty.gold > 0 ? `, ${bounty.gold} or` : ""}
+          </span>
+        </p>
+      </div>
       {threats.length > 0 && (
         <p>
           Dégâts : {threats.map((e) => `${ELEMENT_ICON[e]} ${ELEMENT_LABEL[e]}`).join(", ")}
         </p>
       )}
       {i.monsterWeaknesses.length > 0 && (
-        <p className="text-emerald-300/80">
+        <p className="text-emerald-300">
           Faiblesses des monstres : {i.monsterWeaknesses.map((e) => `${ELEMENT_ICON[e]} ${ELEMENT_LABEL[e]}`).join(", ")}
         </p>
       )}
@@ -184,52 +199,70 @@ export default function AttaquerPage() {
 
   return (
     <PageTransition>
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Attaquer un donjon"
-        subtitle="Lisez le rapport d'éclaireur, préparez une équipe adaptée, puis pillez."
+        subtitle={
+          <>
+            Lisez le rapport d&apos;éclaireur, préparez une équipe adaptée, puis pillez.
+            <span className="mt-1 block">
+              Niveau d&apos;équipe : <span className="font-semibold tabular-nums text-fg">{myLevel}</span> — les donjons proposés sont
+              proches de ce niveau. Plus un donjon est fort, plus sa conquête rapporte (cristaux et butin).
+            </span>
+          </>
+        }
         action={
           <Button size="sm" variant="secondary" onClick={refreshTargets} disabled={loadingTargets}>
-            🔄 Nouvelles cibles
+            Nouvelles cibles
           </Button>
         }
       />
-      <p className="-mt-4 text-sm text-slate-400">
-        Niveau d&apos;équipe : <span className="font-semibold text-slate-200">{myLevel}</span> — les donjons proposés sont proches de ce
-        niveau. Plus un donjon est fort, plus sa conquête rapporte (cristaux et butin).
-      </p>
 
       {loadingTargets && <Spinner label="Recherche de cibles..." />}
       {!loadingTargets && targets.length === 0 && (
-        <p className="text-slate-400">Aucune cible disponible pour le moment.</p>
+        <p className="text-sm text-fg-muted">Aucune cible disponible pour le moment.</p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {targets.map((t) => (
-          <Card
-            key={t.defenderId}
-            accent={selectedTarget === t.defenderId ? "gold" : t.isBot ? "danger" : "default"}
-            interactive
-          >
-            <button className="w-full text-left" onClick={() => setSelectedTarget(t.defenderId)}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-display font-semibold text-slate-50">{t.displayName}</p>
-                {t.isBot && <Badge tone="danger">Repaire</Badge>}
-                {t.conqueredToday && <Badge tone="neutral">Conquis aujourd&apos;hui</Badge>}
-              </div>
-              <IntelLine target={t} />
-              {t.hint && <p className="mt-1 text-xs italic text-amber-300/80">💡 {t.hint}</p>}
-            </button>
-          </Card>
-        ))}
+        {targets.map((t, idx) => {
+          const selected = selectedTarget === t.defenderId;
+          return (
+            <div
+              key={t.defenderId}
+              className="animate-rise grid"
+              style={{ "--delay": `${Math.min(idx, 6) * 40}ms` } as React.CSSProperties}
+            >
+              <Card accent={selected ? "gold" : t.isBot ? "danger" : "default"} interactive className="p-0">
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  className={`block h-full w-full rounded-xl p-5 text-left transition-transform duration-150 ease-out active:scale-[0.99] ${focusRing}`}
+                  onClick={() => setSelectedTarget(t.defenderId)}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-fg">{t.displayName}</p>
+                    <span className="flex flex-wrap gap-1">
+                      {t.isBot && <Badge tone="danger">Repaire</Badge>}
+                      {t.conqueredToday && <Badge tone="neutral">Conquis aujourd&apos;hui</Badge>}
+                    </span>
+                  </div>
+                  <IntelLine target={t} />
+                  {t.hint && <p className="mt-3 text-xs italic leading-relaxed text-gold/80">{t.hint}</p>}
+                </button>
+              </Card>
+            </div>
+          );
+        })}
       </div>
 
       {target && (
-        <Card textured accent="danger">
-          <h2 className="font-display mb-1 font-semibold text-slate-50">Préparer l&apos;équipe contre {target.displayName}</h2>
-          <p className="mb-3 text-xs text-slate-500">
-            Héros choisis : {selectedHeroes.length}/{RAID_PARTY_MAX}
-          </p>
+        <Card accent="danger" className="space-y-4">
+          <div>
+            <h2 className="font-semibold text-fg">Préparer l&apos;équipe contre {target.displayName}</h2>
+            <p className="mt-1 text-xs tabular-nums text-fg-subtle">
+              Héros choisis : {selectedHeroes.length}/{RAID_PARTY_MAX}
+            </p>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {idleHeroes.map((hero) => {
               const info = heroInfo.get(hero.id)!;
@@ -241,14 +274,17 @@ export default function AttaquerPage() {
                   disabled={!selectedHeroes.includes(hero.id) && selectedHeroes.length >= RAID_PARTY_MAX}
                   onClick={() => toggleHero(hero.id)}
                 >
-                  <span className="flex flex-wrap items-center justify-between gap-x-2">
+                  <span className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
                     <span>
-                      {hero.name} <span className="text-xs text-slate-500">Nv.{hero.level} · {tryGetClass(hero.classId)?.name}</span>
+                      {hero.name}{" "}
+                      <span className="text-xs tabular-nums opacity-70">
+                        Nv.{hero.level} · {tryGetClass(hero.classId)?.name}
+                      </span>
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs tabular-nums opacity-80">
                       {info.element ? ELEMENT_ICON[info.element] : ""}
-                      {info.tag === "disarm" && " 🔧 Désamorçage"}
-                      {info.tag === "scout" && " 🔭 Éclaireur"}
+                      {info.tag === "disarm" && " Désamorçage"}
+                      {info.tag === "scout" && " Éclaireur"}
                       {info.healer && " ✚ Soins de marche"}
                       {info.stats.trapRes > 0 && ` · ⚠️ ${info.stats.trapRes}%`}
                     </span>
@@ -257,33 +293,33 @@ export default function AttaquerPage() {
               );
             })}
           </div>
-          {idleHeroes.length === 0 && <p className="mt-2 text-sm text-slate-500">Aucun héros disponible.</p>}
+          {idleHeroes.length === 0 && <p className="text-sm text-fg-subtle">Aucun héros disponible.</p>}
 
           {prep && (
-            <div className="mt-4 grid gap-2 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-slate-300 sm:grid-cols-2">
+            <div className="grid gap-x-4 gap-y-2 rounded-lg border border-line bg-white/[0.025] p-3 text-xs leading-relaxed tabular-nums text-fg-muted sm:grid-cols-2">
               <p>
-                ⚠️ Dégâts des pièges réduits de <span className="font-semibold text-slate-100">{prep.trapCut} %</span>
-                <span className="text-slate-500">
+                Dégâts des pièges réduits de <span className="font-semibold text-fg">{prep.trapCut} %</span>
+                <span className="text-fg-subtle">
                   {" "}
                   (rés. moyenne {prep.avgTrapRes} %{prep.disarm > 0 ? `, Désamorçage ${prep.disarm} %` : ", aucun Désamorçage"})
                 </span>
-                {target.intel.traps > 0 && prep.trapCut < 30 && <span className="text-red-400"> — risqué face à {target.intel.traps} pièges</span>}
+                {target.intel.traps > 0 && prep.trapCut < 30 && <span className="text-red-300"> — risqué face à {target.intel.traps} pièges</span>}
               </p>
               <p>
-                ✚ {prep.healers} soigneur(s) : {prep.healers > 0 ? "l'équipe récupère entre les salles" : <span className="text-red-400">aucune récupération entre les salles</span>}
+                ✚ {prep.healers} soigneur(s) : {prep.healers > 0 ? "l'équipe récupère entre les salles" : <span className="text-red-300">aucune récupération entre les salles</span>}
               </p>
-              <p>🔭 Éclaireur : {prep.scout ? "oui, les salles voisines seront révélées" : "non, exploration à l'aveugle"}</p>
+              <p>Éclaireur : {prep.scout ? "oui, les salles voisines seront révélées" : "non, exploration à l'aveugle"}</p>
               {target.intel.monsterWeaknesses.length > 0 && (
                 <p>
-                  🎯 {prep.exploiting}/{selectedHeroes.length} héros frappent une faiblesse des monstres
-                  <span className="text-slate-500"> (affinité = premier sort élémentaire équipé)</span>
+                  {prep.exploiting}/{selectedHeroes.length} héros frappent une faiblesse des monstres
+                  <span className="text-fg-subtle"> (affinité = premier sort élémentaire équipé)</span>
                 </p>
               )}
               {prep.threats.length > 0 && (
                 <p>
                   Résistances de l&apos;équipe :{" "}
                   {prep.threats.map(({ e, res }) => (
-                    <span key={e} className={res >= 20 ? "text-emerald-300" : res < 0 ? "text-red-400" : "text-slate-300"}>
+                    <span key={e} className={res >= 20 ? "text-emerald-300" : res < 0 ? "text-red-300" : "text-fg-muted"}>
                       {ELEMENT_ICON[e]} {res}%{" "}
                     </span>
                   ))}
@@ -291,18 +327,22 @@ export default function AttaquerPage() {
               )}
             </div>
           )}
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="text-xs leading-relaxed text-fg-subtle">
             Astuce : le premier sort équipé d&apos;un héros définit son effet de raid. Un sort de Désamorçage ou d&apos;Éclaireur remplace
             son effet de combat par un atout pour toute l&apos;équipe. Les maîtrises « Pas feutré », « Démineur »… et les affixes « du Démineur »
             réduisent les dégâts de pièges.
           </p>
-          <Button variant="danger" onClick={startRaid} disabled={starting || selectedHeroes.length === 0} className="mt-4">
+          <Button variant="danger" onClick={startRaid} disabled={starting || selectedHeroes.length === 0}>
             {starting ? "Préparation..." : "Lancer l'attaque"}
           </Button>
         </Card>
       )}
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-300">
+          {error}
+        </p>
+      )}
     </div>
     </PageTransition>
   );

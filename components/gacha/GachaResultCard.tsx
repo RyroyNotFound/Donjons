@@ -55,8 +55,9 @@ export function GachaResultCard({ result, index }: { result: GachaPullResult; in
       style={{ "--delay": `${index * 0.18}s` } as React.CSSProperties}
     >
       <div className={`gacha-card-inner ${isLegendary ? "gacha-card-legendary" : ""}`}>
-        <div className="gacha-card-face gacha-card-mystery border border-white/15 bg-gradient-to-b from-white/10 to-transparent text-3xl">
-          🎴
+        <div className="gacha-card-face gacha-card-mystery border border-line-strong bg-gradient-to-b from-surface-3 to-surface shadow-[inset_0_1px_0_rgb(255_255_255/0.06)]">
+          <span aria-hidden className="absolute inset-2 rounded-lg border border-gold/15" />
+          <Icon name="mystery" className="h-8 w-8 opacity-70" />
         </div>
         <div
           className={`gacha-card-face gacha-card-result border text-center text-sm ${RARITY_GACHA_FACE[result.rarity]}`}
@@ -71,11 +72,13 @@ export function GachaResultCard({ result, index }: { result: GachaPullResult; in
           ) : (
             <Icon name={resultIconName(result)} className="mx-auto h-6 w-6" />
           )}
-          <p className="mt-1 flex items-center justify-center gap-1 text-[10px] uppercase tracking-wide opacity-70">
+          <p className="mt-2 flex items-center justify-center gap-1 text-[10px] font-medium uppercase tracking-[0.14em] opacity-80">
             <Icon name={RARITY_ICON[result.rarity]} className="h-3 w-3" /> {RARITY_LABEL[result.rarity]}
           </p>
-          <p className="mt-1 px-1 font-medium leading-tight">{resultLabel(result)}</p>
-          {!!result.stardust && <p className="mt-0.5 text-[10px] text-violet-300">+{result.stardust} ✦</p>}
+          <p className="mt-1 px-1 font-semibold leading-tight">{resultLabel(result)}</p>
+          {!!result.stardust && (
+            <p className="mt-1 text-[11px] tabular-nums text-purple-300">+{result.stardust} ✦</p>
+          )}
         </div>
       </div>
     </div>

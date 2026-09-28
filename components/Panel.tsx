@@ -1,9 +1,9 @@
 export type PanelTone = "neutral" | "highlight" | "owned";
 
 const TONE_STYLES: Record<PanelTone, string> = {
-  neutral: "border-white/10 bg-black/20",
-  highlight: "border-amber-500/40 bg-amber-500/5",
-  owned: "border-emerald-500/30 bg-emerald-500/5",
+  neutral: "border-line bg-white/[0.025]",
+  highlight: "border-gold/30 bg-gold/[0.06]",
+  owned: "border-emerald-400/20 bg-emerald-400/[0.05]",
 };
 
 const PADDING_STYLES = {

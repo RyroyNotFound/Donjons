@@ -6,7 +6,7 @@ import Link from "next/link";
 import { callApi } from "@/lib/api/client";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/Button";
+import { Button, buttonClasses } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 import { Badge } from "@/components/Badge";
 import { RARITY_LABEL } from "@/lib/ui/rarity";
@@ -16,6 +16,9 @@ import { RaidMap } from "@/components/dungeon/RaidMap";
 import { HeroHpBar } from "@/components/dungeon/HeroHpBar";
 import { RaidCombatLog } from "@/components/dungeon/RaidCombatLog";
 import { RaidBattleScene } from "@/components/dungeon/RaidBattleScene";
+import { Icon } from "@/components/Icon";
+import { NavIcon } from "@/components/NavIcon";import { focusRing } from "@/lib/ui/a11y";
+import type { IconName } from "@/lib/ui/icons";
 import { ADVENTURE_STAGES, getAdventureStage, STAGES_PER_WORLD } from "@/lib/game/content/adventure";
 import type { DungeonRoomContentType, RaidHeroState, RaidLogEntry, RaidView, ResourceKind } from "@/types/game";
 
@@ -39,15 +42,29 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
   essence: "Essence",
 };
 
+function Reward({ icon, children }: { icon?: IconName; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      {icon && <Icon name={icon} className="h-3.5 w-3.5" />}
+      {children}
+    </span>
+  );
+}
+
 function BountyLine({ bounty }: { bounty: NonNullable<RaidView["bounty"]> }) {
   return (
     <div className="text-sm">
-      <p className="font-semibold text-amber-200">Prime de conquête</p>
-      <p className="text-slate-300">
-        {bounty.gold > 0 && `${bounty.gold} or · `}
+      <p className="font-semibold text-gold">Prime de conquête</p>
+      <p className="mt-0.5 tabular-nums text-fg-muted">
+        {bounty.gold > 0 && (
+          <>
+            <Reward icon="gold">{bounty.gold} or</Reward>
+            {" · "}
+          </>
+        )}
         {bounty.forgeShards} éclats de forge
       </p>
-      <p className="mt-1">
+      <p className="mt-1.5">
         <Badge tone={bounty.item.rarity}>
           {RARITY_LABEL[bounty.item.rarity]} · {bounty.item.name} (palier {bounty.item.tier ?? 1})
         </Badge>
@@ -59,12 +76,21 @@ function BountyLine({ bounty }: { bounty: NonNullable<RaidView["bounty"]> }) {
 function AdventureRewardLine({ reward }: { reward: NonNullable<RaidView["adventureReward"]> }) {
   return (
     <div className="text-sm">
-      <p className="font-semibold text-amber-200">Récompense de premier succès</p>
-      <p className="text-slate-300">
-        {reward.gold} or · 💎 {reward.crystals} · ✦ {reward.stardust} poussière · {reward.rankTokens} jeton{reward.rankTokens > 1 ? "s" : ""} de rang ·{" "}
+      <p className="font-semibold text-gold">Récompense de premier succès</p>
+      <p className="mt-0.5 tabular-nums text-fg-muted">
+        <Reward icon="gold">{reward.gold} or</Reward>
+        {" · "}
+        <Reward icon="crystal">{reward.crystals}</Reward>
+        {" · "}
+        <Reward>✦ {reward.stardust} poussière</Reward>
+        {" · "}
+        <Reward icon="rank-token">
+          {reward.rankTokens} jeton{reward.rankTokens > 1 ? "s" : ""} de rang
+        </Reward>
+        {" · "}
         {reward.forgeShards} éclats de forge
       </p>
-      <p className="mt-1">
+      <p className="mt-1.5">
         <Badge tone={reward.item.rarity}>
           {RARITY_LABEL[reward.item.rarity]} · {reward.item.name} (palier {reward.item.tier ?? 1})
         </Badge>
@@ -192,39 +218,54 @@ export default function RaidPage() {
 
   return (
     <PageTransition>
-    <div className="space-y-6">
+    <div className="space-y-8">
       {showVictoryBanner && (
         <div className="dungeon-victory-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="dungeon-victory-card w-full max-w-sm">
-            <Card accent="legendaire">
-              <div className="flex flex-col items-center gap-3 py-2 text-center">
-                <span className="text-5xl">🏆</span>
-                <h2 className="text-glow-gold font-display text-2xl font-bold">Félicitations !</h2>
-                {adventure ? (
-                  <>
-                    <p className="text-sm text-slate-200">
-                      « {adventure.name} » est terminé
-                      {adventure.index + 1 < ADVENTURE_STAGES.length ? " : le donjon suivant est débloqué." : " : vous avez achevé l'aventure !"}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="raid-victory-title"
+            className="dungeon-victory-card relative w-full max-w-sm overflow-hidden rounded-2xl border border-line-strong bg-surface p-6 shadow-[0_24px_48px_-12px_rgb(0_0_0/0.6)]"
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-gold/70 to-transparent"
+            />
+            <div className="flex flex-col items-center gap-3 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full border border-gold/30 bg-gold/10 text-gold">
+                <NavIcon name="trophy" className="h-6 w-6" />
+              </span>
+              <h2 id="raid-victory-title" className="font-display text-2xl font-semibold text-gold">
+                Félicitations !
+              </h2>
+              {adventure ? (
+                <>
+                  <p className="text-sm leading-relaxed text-fg">
+                    « {adventure.name} » est terminé
+                    {adventure.index + 1 < ADVENTURE_STAGES.length ? " : le donjon suivant est débloqué." : " : vous avez achevé l'aventure !"}
+                  </p>
+                  {view.adventureReward ? (
+                    <AdventureRewardLine reward={view.adventureReward} />
+                  ) : (
+                    <p className="text-sm text-fg-muted">Déjà terminé auparavant : pas de nouvelle récompense.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm leading-relaxed text-fg">Vous avez trouvé toutes les salles au trésor et conquis le donjon !</p>
+                  <p className="text-sm font-semibold tabular-nums text-amber-300">Butin final : {formatLoot(view.bankedLoot)}</p>
+                  {!!view.crystalsEarned && (
+                    <p className="inline-flex items-center gap-1 text-sm font-semibold tabular-nums text-sky-300">
+                      <Icon name="crystal" className="h-4 w-4" />+{view.crystalsEarned} cristaux
                     </p>
-                    {view.adventureReward ? (
-                      <AdventureRewardLine reward={view.adventureReward} />
-                    ) : (
-                      <p className="text-sm text-slate-400">Déjà terminé auparavant : pas de nouvelle récompense.</p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-slate-200">Vous avez trouvé toutes les salles au trésor et conquis le donjon !</p>
-                    <p className="text-sm font-semibold text-amber-300">Butin final : {formatLoot(view.bankedLoot)}</p>
-                    {!!view.crystalsEarned && <p className="text-sm font-semibold text-sky-300">💎 +{view.crystalsEarned} cristaux</p>}
-                    {view.bounty && <BountyLine bounty={view.bounty} />}
-                  </>
-                )}
-                <Button onClick={() => router.push(backHref, { transitionTypes: ["nav-back"] })} className="mt-2 w-full">
-                  {adventure ? "Retour à l'aventure" : "Retour au menu"}
-                </Button>
-              </div>
-            </Card>
+                  )}
+                  {view.bounty && <BountyLine bounty={view.bounty} />}
+                </>
+              )}
+              <Button onClick={() => router.push(backHref, { transitionTypes: ["nav-back"] })} size="lg" className="mt-3 w-full">
+                {adventure ? "Retour à l'aventure" : "Retour au menu"}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -240,7 +281,7 @@ export default function RaidPage() {
 
       <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
         <Card textured>
-          <p className="font-display mb-3 text-sm font-semibold text-slate-50">Carte du donjon</p>
+          <h2 className="mb-4 font-semibold text-fg">Carte du donjon</h2>
           <RaidMap
             rooms={view.rooms}
             currentRoom={view.currentRoom}
@@ -251,8 +292,8 @@ export default function RaidPage() {
 
         <div className="space-y-4">
           <Card>
-            <p className="font-display mb-3 text-sm font-semibold text-slate-50">Votre équipe</p>
-            <div className="space-y-2">
+            <h2 className="mb-4 font-semibold text-fg">Votre équipe</h2>
+            <div className="space-y-3">
               {shownHeroes.map((hero) => (
                 <HeroHpBar key={hero.id} hero={hero} />
               ))}
@@ -261,22 +302,29 @@ export default function RaidPage() {
 
           {battleShown && (
             <Card accent={revealed > battle.to ? (battle.report.outcome === "cleared" ? "success" : "danger") : undefined}>
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="font-display text-sm font-semibold text-slate-50">Combat</p>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-semibold text-fg">Combat</h2>
                 {playing && (
-                  <div className="flex items-center gap-1">
-                    {SPEEDS.map((s, i) => (
-                      <button
-                        key={s.label}
-                        type="button"
-                        onClick={() => setSpeed(i)}
-                        className={`rounded px-2 py-0.5 text-xs ${i === speed ? "bg-amber-500/30 text-amber-200" : "text-slate-400 hover:text-slate-200"}`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                    <button type="button" onClick={skip} className="rounded px-2 py-0.5 text-xs text-slate-400 hover:text-slate-200">
-                      Passer ⏭
+                  <div className="flex items-center gap-1.5">
+                    <div className="inline-flex rounded-lg border border-line bg-white/[0.02] p-0.5" role="group" aria-label="Vitesse de lecture">
+                      {SPEEDS.map((s, i) => (
+                        <button
+                          key={s.label}
+                          type="button"
+                          aria-pressed={i === speed}
+                          onClick={() => setSpeed(i)}
+                          className={`h-7 rounded-md px-2.5 text-xs tabular-nums transition-[background-color,color] duration-150 ease-out ${focusRing} ${
+                            i === speed
+                              ? "bg-surface-3 text-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.06)]"
+                              : "text-fg-muted hover:text-fg"
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button type="button" onClick={skip} className={buttonClasses("ghost", "sm")}>
+                      Passer
                     </button>
                   </div>
                 )}
@@ -291,23 +339,27 @@ export default function RaidPage() {
 
           <Card>
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="font-display text-sm font-semibold text-slate-50">Journal de combat</p>
+              <h2 className="font-semibold text-fg">Journal de combat</h2>
               {playing && !battleShown && (
-                <button type="button" onClick={skip} className="text-xs text-slate-400 hover:text-slate-200">
-                  Passer ⏭
+                <button type="button" onClick={skip} className={buttonClasses("ghost", "sm")}>
+                  Passer
                 </button>
               )}
             </div>
-            <p className="mb-2 text-[11px] text-slate-500">
-              <span className="text-sky-300">▍</span> vos héros · <span className="text-red-300">▍</span> ennemis ·{" "}
-              <span className="rounded bg-violet-500/20 px-1 text-violet-200">effet</span> sort déclenché
+            <p className="mb-2 text-[11px] text-fg-subtle">
+              <span className="text-sky-400">▍</span> vos héros · <span className="text-red-400">▍</span> ennemis ·{" "}
+              <span className="rounded bg-purple-400/15 px-1 text-purple-200">effet</span> sort déclenché
             </p>
             <RaidCombatLog entries={visible} roomTypes={roomTypes} />
           </Card>
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-300">
+          {error}
+        </p>
+      )}
 
       {view.status === "in_progress" && (
         <Button variant="danger" onClick={flee} disabled={busy || playing}>
@@ -316,13 +368,13 @@ export default function RaidPage() {
       )}
 
       {finished && (
-        <Card accent={view.status === "victory" ? "success" : view.status === "fled" ? "gold" : "danger"}>
-          <h2 className="font-display mb-2 text-lg font-bold text-slate-50">
+        <Card accent={view.status === "victory" ? "success" : view.status === "fled" ? "gold" : "danger"} className="space-y-3">
+          <h2 className="text-lg font-semibold text-fg">
             {view.status === "victory" && "Victoire totale !"}
             {view.status === "fled" && (adventure ? "Donjon abandonné" : "Retraite réussie")}
             {view.status === "wiped" && "Équipe anéantie..."}
           </h2>
-          <p className="text-sm text-slate-300">
+          <p className="text-sm tabular-nums text-fg-muted">
             {adventure
               ? view.status === "victory"
                 ? view.adventureReward
@@ -333,16 +385,18 @@ export default function RaidPage() {
                 ? "Aucun butin récupéré."
                 : `Butin final : ${formatLoot(view.bankedLoot)}`}
           </p>
-          {!adventure && !!view.crystalsEarned && <p className="text-sm text-sky-300">💎 +{view.crystalsEarned} cristaux</p>}
+          {!adventure && !!view.crystalsEarned && (
+            <p className="flex items-center gap-1 text-sm tabular-nums text-sky-300">
+              <Icon name="crystal" className="h-4 w-4" />+{view.crystalsEarned} cristaux
+            </p>
+          )}
           {view.bounty && <BountyLine bounty={view.bounty} />}
           {view.adventureReward && <AdventureRewardLine reward={view.adventureReward} />}
-          <Link
-            href={backHref}
-            transitionTypes={["nav-back"]}
-            className="mt-4 inline-block text-amber-400 hover:underline"
-          >
-            ← {adventure ? "Retour à l'aventure" : "Retour à l'attaque"}
-          </Link>
+          <div className="pt-1">
+            <Link href={backHref} transitionTypes={["nav-back"]} className={buttonClasses("secondary", "md")}>
+              ← {adventure ? "Retour à l'aventure" : "Retour à l'attaque"}
+            </Link>
+          </div>
         </Card>
       )}
     </div>

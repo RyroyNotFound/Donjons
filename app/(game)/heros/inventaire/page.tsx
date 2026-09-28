@@ -9,13 +9,14 @@ import { TALENTS } from "@/lib/game/content/talents";
 import { MASTERIES } from "@/lib/game/content/masteries";
 import { formatStatBonus, RAID_EFFECT_LABEL, ARENA_EFFECT_LABEL } from "@/lib/game/statFormat";
 import { MAX_COMPONENT_RANK } from "@/lib/game/economy";
-import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { buttonClasses } from "@/components/Button";
-import { Panel } from "@/components/Panel";
+import { Badge } from "@/components/Badge";
 import { Spinner } from "@/components/Spinner";
 import { PageTransition } from "@/components/PageTransition";
 import { ROLE_LABEL } from "@/lib/ui/role";
+
+const LIST = "divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface";
 
 function ItemRow({
   name,
@@ -30,21 +31,42 @@ function ItemRow({
   rank?: number;
 }) {
   return (
-    <Panel tone="owned" className="flex items-center justify-between gap-3">
-      <div>
-        <p className="font-medium text-slate-100">{name}</p>
-        <p className="text-xs text-slate-400">{description}</p>
-        {value && <p className="mt-0.5 text-xs text-amber-400">{value}</p>}
+    <li className="flex items-start justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-fg">{name}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{description}</p>
+        {value && <p className="mt-1 text-xs text-gold">{value}</p>}
       </div>
-      <span className="text-xs font-medium text-emerald-400">
-        {rank !== undefined ? `Rang ${rank}/${MAX_COMPONENT_RANK}` : "Obtenu"}
-      </span>
-    </Panel>
+      {rank !== undefined ? (
+        <Badge tone={rank >= MAX_COMPONENT_RANK ? "gold" : "neutral"} className="mt-0.5 shrink-0 tabular-nums">
+          Rang {rank}/{MAX_COMPONENT_RANK}
+        </Badge>
+      ) : (
+        <Badge tone="success" className="mt-0.5 shrink-0">
+          Obtenu
+        </Badge>
+      )}
+    </li>
   );
 }
 
 function EmptyHint() {
-  return <p className="text-sm text-slate-500">Rien d&apos;obtenu pour l&apos;instant — tentez l&apos;invocation.</p>;
+  return (
+    <p className="rounded-xl border border-dashed border-line px-4 py-3 text-sm text-fg-subtle">
+      Rien d&apos;obtenu pour l&apos;instant — tentez l&apos;invocation.
+    </p>
+  );
+}
+
+function SectionTitle({ title, owned, total }: { title: string; owned: number; total: number }) {
+  return (
+    <h2 className="mb-3 flex items-baseline gap-2 font-semibold text-fg">
+      {title}
+      <span className="text-sm font-normal tabular-nums text-fg-subtle">
+        {owned}/{total}
+      </span>
+    </h2>
+  );
 }
 
 export default function InventairePage() {
@@ -72,91 +94,92 @@ export default function InventairePage() {
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <PageHeader
-        title="Inventaire"
-        subtitle="Tout ce que vous avez obtenu à l'invocation — équipez-le sur n'importe quel héros. Un doublon fait monter le rang au lieu de doubler l'objet."
-        action={
-          <Link href="/gacha" transitionTypes={["nav-forward"]} className={buttonClasses("primary", "md")}>
-            + Invocation
-          </Link>
-        }
-      />
+      <div className="space-y-8">
+        <PageHeader
+          title="Inventaire"
+          subtitle="Tout ce que vous avez obtenu à l'invocation — équipez-le sur n'importe quel héros. Un doublon fait monter le rang au lieu de doubler l'objet."
+          action={
+            <Link href="/gacha" transitionTypes={["nav-forward"]} className={buttonClasses("primary", "md")}>
+              + Invocation
+            </Link>
+          }
+        />
 
-      <Card>
-        <h2 className="font-display mb-3 font-semibold text-slate-50">
-          Classes ({ownedClasses.length}/{CLASSES.length})
-        </h2>
-        {ownedClasses.length === 0 && <EmptyHint />}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {ownedClasses.map((c) => (
-            <ItemRow key={c.id} name={`${c.name} (${ROLE_LABEL[c.role]})`} description={c.description} />
-          ))}
-        </div>
-      </Card>
+        <section>
+          <SectionTitle title="Classes" owned={ownedClasses.length} total={CLASSES.length} />
+          {ownedClasses.length === 0 ? (
+            <EmptyHint />
+          ) : (
+            <ul className={LIST}>
+              {ownedClasses.map((c) => (
+                <ItemRow key={c.id} name={`${c.name} (${ROLE_LABEL[c.role]})`} description={c.description} />
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <Card>
-        <h2 className="font-display mb-3 font-semibold text-slate-50">
-          Sorts ({ownedSpells.length}/{SPELLS.length})
-        </h2>
-        {ownedSpells.length === 0 && <EmptyHint />}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {ownedSpells.map((s) => (
-            <ItemRow
-              key={s.id}
-              name={s.element ? `${s.name} ${ELEMENT_ICON[s.element]}` : s.name}
-              description={s.description}
-              value={`Donjon : ${RAID_EFFECT_LABEL[s.raidEffectTag]} · ${ARENA_EFFECT_LABEL[s.arenaAbilityTag]}`}
-              rank={ranks[s.id]}
-            />
-          ))}
-        </div>
-      </Card>
+        <section>
+          <SectionTitle title="Sorts" owned={ownedSpells.length} total={SPELLS.length} />
+          {ownedSpells.length === 0 ? (
+            <EmptyHint />
+          ) : (
+            <ul className={LIST}>
+              {ownedSpells.map((s) => (
+                <ItemRow
+                  key={s.id}
+                  name={s.element ? `${s.name} ${ELEMENT_ICON[s.element]}` : s.name}
+                  description={s.description}
+                  value={`Donjon : ${RAID_EFFECT_LABEL[s.raidEffectTag]} · ${ARENA_EFFECT_LABEL[s.arenaAbilityTag]}`}
+                  rank={ranks[s.id]}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <Card>
-        <h2 className="font-display mb-3 font-semibold text-slate-50">
-          Maîtrises ({ownedMasteries.length}/{MASTERIES.length})
-        </h2>
-        {ownedMasteries.length === 0 && <EmptyHint />}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {ownedMasteries.map((m) => (
-            <ItemRow
-              key={m.id}
-              name={m.name}
-              description={m.description}
-              value={formatStatBonus(m.statBonus)}
-              rank={ranks[m.id]}
-            />
-          ))}
-        </div>
-      </Card>
+        <section>
+          <SectionTitle title="Maîtrises" owned={ownedMasteries.length} total={MASTERIES.length} />
+          {ownedMasteries.length === 0 ? (
+            <EmptyHint />
+          ) : (
+            <ul className={LIST}>
+              {ownedMasteries.map((m) => (
+                <ItemRow
+                  key={m.id}
+                  name={m.name}
+                  description={m.description}
+                  value={formatStatBonus(m.statBonus)}
+                  rank={ranks[m.id]}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <Card>
-        <h2 className="font-display mb-1 font-semibold text-slate-50">
-          Talents ({ownedTalents.length}/{TALENTS.length})
-        </h2>
-        <p className="mb-4 text-sm text-slate-400">Groupés par classe, dans l&apos;ordre de l&apos;arbre.</p>
-        {ownedTalents.length === 0 && <EmptyHint />}
-        <div className="space-y-5">
-          {talentsByClass.map(({ classDef, talents }) => (
-            <div key={classDef.id}>
-              <h3 className="mb-2 text-sm font-semibold text-amber-400">{classDef.name}</h3>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {talents.map((t) => (
-                  <ItemRow
-                    key={t.id}
-                    name={`${t.name} (T${t.tier})`}
-                    description={t.description}
-                    value={`${formatStatBonus(t.statBonusPerRank)} par rang`}
-                    rank={ranks[t.id]}
-                  />
-                ))}
+        <section>
+          <SectionTitle title="Talents" owned={ownedTalents.length} total={TALENTS.length} />
+          <p className="-mt-1 mb-4 text-sm text-fg-muted">Groupés par classe, dans l&apos;ordre de l&apos;arbre.</p>
+          {ownedTalents.length === 0 && <EmptyHint />}
+          <div className="space-y-5">
+            {talentsByClass.map(({ classDef, talents }) => (
+              <div key={classDef.id}>
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">{classDef.name}</h3>
+                <ul className={LIST}>
+                  {talents.map((t) => (
+                    <ItemRow
+                      key={t.id}
+                      name={`${t.name} (T${t.tier})`}
+                      description={t.description}
+                      value={`${formatStatBonus(t.statBonusPerRank)} par rang`}
+                      rank={ranks[t.id]}
+                    />
+                  ))}
+                </ul>
               </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </PageTransition>
   );
 }

@@ -13,6 +13,7 @@ import { ARENA_SPELL_TAGS } from "@/lib/game/arena/engine";
 import { DIFFICULTIES, getDifficulty, isDifficultyUnlocked, recordKey, zoneAtDifficulty } from "@/lib/game/content/difficulties";
 import { getMonster } from "@/lib/game/content/dungeon";
 import { ELEMENT_ICON, ELEMENTS, RES_KEY } from "@/lib/game/engine/elements";
+import { focusRing } from "@/lib/ui/a11y";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button, buttonClasses } from "@/components/Button";
@@ -24,13 +25,22 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = { wood: "Bois", ore: "Miner
 
 function StarRow({ count }: { count: number }) {
   return (
-    <span aria-label={`${count} étoile(s) sur 3`}>
+    <span aria-label={`${count} étoile(s) sur 3`} className="tracking-tight">
       {[1, 2, 3].map((i) => (
-        <span key={i} className={i <= count ? "text-amber-300" : "text-slate-700"}>
+        <span key={i} className={i <= count ? "text-gold" : "text-fg-faint"}>
           ★
         </span>
       ))}
     </span>
+  );
+}
+
+function LockGlyph({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={`shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+      <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -48,8 +58,8 @@ function powerVerdict(power: number, zone: ZoneDefinition): { label: string; cla
   const ratio = power / zone.recommendedPower;
   if (ratio >= 1.25) return { label: "Confortable", className: "text-emerald-300" };
   if (ratio >= 0.9) return { label: "Équilibré", className: "text-amber-300" };
-  if (ratio >= 0.6) return { label: "Risqué", className: "text-orange-400" };
-  return { label: "Très dangereux", className: "text-red-400" };
+  if (ratio >= 0.6) return { label: "Risqué", className: "text-orange-300" };
+  return { label: "Très dangereux", className: "text-red-300" };
 }
 
 export default function ExpeditionsPage() {
@@ -143,100 +153,120 @@ export default function ExpeditionsPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <PageHeader
           title="Expéditions"
           subtitle="Des sessions d'une minute : survivez aux vagues, battez le boss, rapportez le butin. La puissance de vos héros fait tout."
         />
 
         {activeExpeditions.length > 0 && (
-          <Card accent="gold">
-            <h2 className="font-display mb-3 font-semibold text-slate-50">En cours</h2>
-            <ul className="space-y-2">
+          <section>
+            <h2 className="mb-3 font-semibold text-fg">
+              En cours <span className="text-fg-subtle">· {activeExpeditions.length}</span>
+            </h2>
+            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-gold/25 bg-surface">
               {activeExpeditions.map((exp) => {
                 const expZone = ZONES.find((z) => z.id === exp.zoneId);
                 return (
-                  <li
-                    key={exp.id}
-                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-sm"
-                  >
-                    <span className="text-slate-300">
-                      {expZone?.name ?? exp.zoneId}
-                      {exp.difficulty && exp.difficulty !== "normal" ? ` (${getDifficulty(exp.difficulty).name})` : ""} — {exp.heroIds.length} héros
+                  <li key={exp.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 text-sm">
+                    <span className="flex min-w-0 items-center gap-2 text-fg">
+                      <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-gold" aria-hidden />
+                      <span className="min-w-0">
+                        {expZone?.name ?? exp.zoneId}
+                        {exp.difficulty && exp.difficulty !== "normal" ? ` (${getDifficulty(exp.difficulty).name})` : ""}
+                        <span className="text-fg-subtle"> — {exp.heroIds.length} héros</span>
+                      </span>
                     </span>
                     <div className="flex items-center gap-2">
-                      <Link href={`/expeditions/jouer/${exp.id}`} transitionTypes={["nav-forward"]} className={buttonClasses("primary", "sm")}>
-                        Reprendre
-                      </Link>
                       <Button size="sm" variant="ghost" onClick={() => abandon(exp.id)} disabled={abandoningId === exp.id}>
                         {abandoningId === exp.id ? "..." : "Abandonner"}
                       </Button>
+                      <Link href={`/expeditions/jouer/${exp.id}`} transitionTypes={["nav-forward"]} className={buttonClasses("primary", "sm")}>
+                        Reprendre
+                      </Link>
                     </div>
                   </li>
                 );
               })}
             </ul>
-          </Card>
+          </section>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {ZONES.map((z) => {
+        <div className="grid gap-3 sm:grid-cols-2">
+          {ZONES.map((z, i) => {
             const unlocked = isZoneUnlocked(z, records);
             const record = records?.[z.id];
             const required = z.unlockRequires ? ZONES.find((r) => r.id === z.unlockRequires) : undefined;
             const elements = zoneElements(z);
+            const selected = selectedZone === z.id;
             return (
-              <Card key={z.id} accent={selectedZone === z.id ? "gold" : "default"} interactive={unlocked}>
-                <button className="w-full text-left disabled:cursor-not-allowed" disabled={!unlocked} onClick={() => selectZone(z)}>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-display font-semibold text-slate-50">
-                      {unlocked ? "" : "🔒 "}
-                      {z.tier}. {z.name}
-                    </p>
-                    <StarRow count={record?.bestStars ?? 0} />
-                  </div>
-                  <p className={`text-sm ${unlocked ? "text-slate-400" : "text-slate-600"}`}>{z.description}</p>
-                  {unlocked ? (
-                    <div className="mt-2 space-y-0.5 text-xs text-slate-500">
-                      <p>
-                        ⏱️ {z.durationSec}s · 👥 {z.heroSlots} héros max · 💪 Puissance conseillée {z.recommendedPower}
+              <div key={z.id} className="animate-rise" style={{ "--delay": `${Math.min(i, 6) * 40}ms` } as React.CSSProperties}>
+                <Card accent={selected ? "gold" : "default"} interactive={unlocked && !selected} className={`h-full p-0 ${selected ? "bg-surface-2" : ""}`}>
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    className={`block h-full w-full rounded-xl p-5 text-left disabled:cursor-not-allowed ${focusRing}`}
+                    disabled={!unlocked}
+                    onClick={() => selectZone(z)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className={`flex items-center gap-1.5 font-semibold ${unlocked ? "text-fg" : "text-fg-subtle"}`}>
+                        {!unlocked && <LockGlyph className="h-4 w-4 text-fg-faint" />}
+                        <span className="tabular-nums text-fg-subtle">{z.tier}.</span> {z.name}
                       </p>
-                      <p>
-                        👹 Boss : {z.boss.name} · Butin : or, {Object.keys(z.loot.resourceDrops).map((k) => RESOURCE_LABEL[k as ResourceKind]).join(", ")}, objets
-                      </p>
-                      {(elements.attacks.length > 0 || elements.weaknesses.length > 0) && (
-                        <p>
-                          {elements.attacks.length > 0 && <>Attaques : {elements.attacks.map((e) => ELEMENT_ICON[e]).join(" ")} · </>}
-                          {elements.weaknesses.length > 0 && <>Faiblesses : {elements.weaknesses.map((e) => ELEMENT_ICON[e]).join(" ")}</>}
-                        </p>
-                      )}
-                      {record && <p>Victoires : {record.clears}</p>}
-                      <p className="flex flex-wrap gap-x-3">
-                        {DIFFICULTIES.map((d) => {
-                          const stars = records?.[recordKey(z.id, d.id)]?.bestStars ?? 0;
-                          if (!isDifficultyUnlocked(z.id, d.id, records)) return null;
-                          return (
-                            <span key={d.id} title={d.name}>
-                              {d.icon} <StarRow count={stars} />
-                            </span>
-                          );
-                        })}
-                      </p>
+                      <StarRow count={record?.bestStars ?? 0} />
                     </div>
-                  ) : (
-                    <p className="mt-2 text-xs text-slate-600">Terminez « {required?.name} » pour débloquer cette zone.</p>
-                  )}
-                </button>
-              </Card>
+                    <p className={`mt-1 text-sm leading-relaxed ${unlocked ? "text-fg-muted" : "text-fg-faint"}`}>{z.description}</p>
+                    {unlocked ? (
+                      <div className="mt-3 space-y-1 text-xs text-fg-subtle">
+                        <p className="tabular-nums">
+                          <span className="text-fg-muted">{z.durationSec}s</span> · {z.heroSlots} héros max · Puissance conseillée{" "}
+                          <span className="text-fg-muted">{z.recommendedPower}</span>
+                        </p>
+                        <p>
+                          Boss : <span className="text-fg-muted">{z.boss.name}</span> · Butin : or,{" "}
+                          {Object.keys(z.loot.resourceDrops).map((k) => RESOURCE_LABEL[k as ResourceKind]).join(", ")}, objets
+                        </p>
+                        {(elements.attacks.length > 0 || elements.weaknesses.length > 0) && (
+                          <p>
+                            {elements.attacks.length > 0 && <>Attaques : {elements.attacks.map((e) => ELEMENT_ICON[e]).join(" ")} · </>}
+                            {elements.weaknesses.length > 0 && <>Faiblesses : {elements.weaknesses.map((e) => ELEMENT_ICON[e]).join(" ")}</>}
+                          </p>
+                        )}
+                        {record && <p className="tabular-nums">Victoires : {record.clears}</p>}
+                        <p className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
+                          {DIFFICULTIES.map((d) => {
+                            const stars = records?.[recordKey(z.id, d.id)]?.bestStars ?? 0;
+                            if (!isDifficultyUnlocked(z.id, d.id, records)) return null;
+                            return (
+                              <span key={d.id} title={d.name} className="inline-flex items-center gap-1">
+                                <span className="text-[10px]">{d.icon}</span> <StarRow count={stars} />
+                              </span>
+                            );
+                          })}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="mt-3 flex items-center gap-1.5 text-xs text-fg-faint">
+                        <LockGlyph />
+                        Terminez « {required?.name} » pour débloquer cette zone.
+                      </p>
+                    )}
+                  </button>
+                </Card>
+              </div>
             );
           })}
         </div>
 
         {zone && (
-          <Card>
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-display font-semibold text-slate-50">
-                Équipe pour {zone.name} ({team.length}/{zone.heroSlots})
+          <Card accent="gold" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-semibold text-fg">
+                Équipe pour {zone.name}{" "}
+                <span className="font-normal tabular-nums text-fg-subtle">
+                  ({team.length}/{zone.heroSlots})
+                </span>
               </h2>
               <div className="flex gap-2">
                 <Button size="sm" variant="secondary" onClick={autoTeam} disabled={idleHeroes.length === 0}>
@@ -246,35 +276,40 @@ export default function ExpeditionsPage() {
                   Vider
                 </Button>
               </div>
-              <div className="flex w-full flex-wrap gap-2">
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {DIFFICULTIES.map((d) => {
                   const open = isDifficultyUnlocked(zone.id, d.id, records);
                   return (
                     <Chip key={d.id} selected={difficulty === d.id} disabled={!open} onClick={() => setDifficulty(d.id)}>
-                      <span title={open ? undefined : "Battez le boss (2★) dans la difficulté précédente"}>
-                        {open ? d.icon : "🔒"} {d.name}
+                      <span title={open ? undefined : "Battez le boss (2★) dans la difficulté précédente"} className="inline-flex items-center gap-1.5">
+                        {open ? <span className="text-[10px]">{d.icon}</span> : <LockGlyph />} {d.name}
                       </span>
                     </Chip>
                   );
                 })}
               </div>
               {difficulty !== "normal" && (
-                <p className="w-full text-xs text-slate-500">
+                <p className="text-xs leading-relaxed text-fg-subtle">
                   {getDifficulty(difficulty).name} : monstres ×{getDifficulty(difficulty).statMul}, or/ressources ×{getDifficulty(difficulty).lootMul}, objets de
                   palier +{getDifficulty(difficulty).itemTierBonus}
                   {getDifficulty(difficulty).crystalBonus > 0 ? `, +${getDifficulty(difficulty).crystalBonus} 💎 par victoire` : ""}. Les chances de butin et
                   de rareté ne changent pas.
                 </p>
               )}
-              {team.length > 0 && (
-                <p className="text-sm">
-                  <span className="text-slate-400">Puissance : </span>
-                  <span className="font-semibold text-slate-100">{teamPower}</span>
-                  <span className="text-slate-500"> / {zone.recommendedPower} conseillée · </span>
-                  <span className={powerVerdict(teamPower, zone).className}>{powerVerdict(teamPower, zone).label}</span>
-                </p>
-              )}
             </div>
+
+            {team.length > 0 && (
+              <p className="flex flex-wrap items-baseline gap-x-2 text-sm tabular-nums">
+                <span className="text-fg-subtle">Puissance</span>
+                <span className="text-lg font-semibold text-fg">{teamPower}</span>
+                <span className="text-fg-subtle">/ {zone.recommendedPower} conseillée</span>
+                <span className={`font-medium ${powerVerdict(teamPower, zone).className}`}>· {powerVerdict(teamPower, zone).label}</span>
+              </p>
+            )}
+
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {idleHeroes.map((hero) => {
                 const classDef = tryGetClass(hero.classId);
@@ -290,36 +325,40 @@ export default function ExpeditionsPage() {
                     selected={team.includes(hero.id)}
                     disabled={!team.includes(hero.id) && teamFull}
                     onClick={() => toggleHero(hero.id)}
+                    className="py-2"
                   >
                     <span className="flex items-center justify-between gap-2">
-                      <span>
+                      <span className="min-w-0">
                         {team.includes(hero.id) && (
-                          <span className="mr-1 text-amber-300">{team[0] === hero.id ? "👑" : `${team.indexOf(hero.id) + 1}.`}</span>
+                          <span className="mr-1 tabular-nums text-gold">{team[0] === hero.id ? "👑" : `${team.indexOf(hero.id) + 1}.`}</span>
                         )}
-                        {hero.name} <span className="text-xs text-slate-500">Nv.{hero.level} · {classDef?.name ?? "Sans classe"}</span>
+                        <span className="text-fg">{hero.name}</span>{" "}
+                        <span className="text-xs text-fg-subtle">
+                          Nv.{hero.level} · {classDef?.name ?? "Sans classe"}
+                        </span>
                       </span>
-                      <span className="text-xs text-amber-300">💪 {powerByHero.get(hero.id)}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-fg-muted">💪 {powerByHero.get(hero.id)}</span>
                     </span>
-                    {spellIcons && <span className="block text-xs tracking-widest">{spellIcons}</span>}
+                    {spellIcons && <span className="mt-0.5 block text-xs tracking-widest">{spellIcons}</span>}
                   </Chip>
                 );
               })}
             </div>
-            {idleHeroes.length === 0 && <p className="mt-2 text-sm text-slate-500">Aucun héros disponible.</p>}
+            {idleHeroes.length === 0 && <p className="text-sm text-fg-subtle">Aucun héros disponible.</p>}
             {teamFull && (
-              <p className="mt-2 text-xs text-amber-300/80">Équipe complète : retirez un héros pour en choisir un autre.</p>
+              <p className="text-xs text-gold/80">Équipe complète : retirez un héros pour en choisir un autre.</p>
             )}
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="text-xs leading-relaxed text-fg-subtle">
               Chaque héros combat sur le terrain selon son rôle (DPS : tirs, Tank : attire et frappe autour de lui, Soigneur : soigne) et lance
               automatiquement ses sorts équipés. Le premier héros sélectionné est le chef que vous dirigez.
             </p>
-            <Button onClick={start} disabled={starting || team.length === 0} className="mt-4">
+            <Button size="lg" onClick={start} disabled={starting || team.length === 0} className="w-full sm:w-auto">
               {starting ? "Départ..." : "Lancer l'expédition"}
             </Button>
           </Card>
         )}
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-red-300">{error}</p>}
       </div>
     </PageTransition>
   );

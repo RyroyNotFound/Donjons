@@ -21,6 +21,7 @@ import { ITEM_SLOT_LABEL } from "@/lib/game/statFormat";
 import { PageTransition } from "@/components/PageTransition";
 import { SpriteAnimation } from "@/components/SpriteAnimation";
 import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
+import { focusRing } from "@/lib/ui/a11y";
 
 const STATUS_LABEL: Record<string, string> = {
   idle: "Disponible",
@@ -62,53 +63,69 @@ export default function HerosPage() {
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <PageHeader
-        title="Vos héros"
-        subtitle="Gérez votre garnison, leur classe, leurs sorts/talents/maîtrises et leur équipement."
-        action={
-          <Link href="/gacha" transitionTypes={["nav-forward"]} className={buttonClasses("primary", "md")}>
-            + Invocation
-          </Link>
-        }
-      />
+      <div className="space-y-8">
+        <PageHeader
+          title="Vos héros"
+          subtitle="Gérez votre garnison, leur classe, leurs sorts/talents/maîtrises et leur équipement."
+          action={
+            <Link href="/gacha" transitionTypes={["nav-forward"]} className={buttonClasses("primary", "md")}>
+              + Invocation
+            </Link>
+          }
+        />
 
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-400">
-            Emplacements de héros : <span className="text-slate-100">{heroes.length}/{slots}</span>
-            {!freeSlot && !atMax && (
-              <> — un nouvel emplacement coûte <span className="text-amber-300">{slotCost} or</span>.</>
-            )}
-            {atMax && !freeSlot && <> — maximum atteint.</>}
-          </p>
-          <Button size="sm" onClick={recruit} disabled={busy || !canRecruit}>
-            {freeSlot || atMax ? "Recruter un héros" : `Recruter (${slotCost} or)`}
-          </Button>
-        </div>
-        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
-      </Card>
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-fg-muted">
+              Emplacements de héros :{" "}
+              <span className="font-semibold tabular-nums text-fg">
+                {heroes.length}/{slots}
+              </span>
+              {!freeSlot && !atMax && (
+                <>
+                  {" "}
+                  — un nouvel emplacement coûte <span className="tabular-nums text-amber-300">{slotCost} or</span>.
+                </>
+              )}
+              {atMax && !freeSlot && <> — maximum atteint.</>}
+            </p>
+            <Button size="sm" onClick={recruit} disabled={busy || !canRecruit}>
+              {freeSlot || atMax ? "Recruter un héros" : `Recruter (${slotCost} or)`}
+            </Button>
+          </div>
+          {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+        </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {heroes.map((hero, i) => {
-          const classDef = tryGetClass(hero.classId);
-          const equippedItems = Object.values(hero.equipment)
-            .filter(Boolean)
-            .map((id) => items.find((i) => i.id === id))
-            .filter(Boolean) as typeof items;
-          const stats = resolveHeroStats(hero, equippedItems, profile?.componentRanks);
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {heroes.map((hero, i) => {
+            const classDef = tryGetClass(hero.classId);
+            const equippedItems = Object.values(hero.equipment)
+              .filter(Boolean)
+              .map((id) => items.find((i) => i.id === id))
+              .filter(Boolean) as typeof items;
+            const stats = resolveHeroStats(hero, equippedItems, profile?.componentRanks);
+            const star = hero.starRank ?? 1;
+            const statCells: [string, number][] = [
+              ["PV", stats.hp],
+              ["ATQp", stats.atkPhys],
+              ["ATQm", stats.atkMag],
+              ["VIT", stats.spd],
+              ["DEFp", stats.defPhys],
+              ["DEFm", stats.defMag],
+            ];
 
-          return (
-            <div
-              key={hero.id}
-              className="animate-rise"
-              style={{ "--delay": `${Math.min(i, 8) * 0.06}s` } as React.CSSProperties}
-            >
-              <Link href={`/heros/${hero.id}`} transitionTypes={["nav-forward"]}>
-                <Card interactive className="h-full">
-                  <div className="flex items-center justify-between">
-                    <ViewTransition name={`hero-title-${hero.id}`}>
-                      <div className="flex items-center gap-2">
+            return (
+              <Link
+                key={hero.id}
+                href={`/heros/${hero.id}`}
+                transitionTypes={["nav-forward"]}
+                className={`animate-rise group flex h-full flex-col rounded-xl border border-line bg-surface p-4 shadow-[inset_0_1px_0_rgb(255_255_255/0.04),0_1px_2px_rgb(0_0_0/0.3)] transition-[transform,border-color,background-color] duration-150 ease-out hover:border-line-strong hover:bg-surface-2 active:scale-[0.99] ${focusRing}`}
+                style={{ "--delay": `${Math.min(i, 6) * 40}ms` } as React.CSSProperties}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <ViewTransition name={`hero-title-${hero.id}`}>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line bg-white/[0.03]">
                         {classDef && (
                           <SpriteAnimation
                             sheet={HERO_SPRITE_BY_ROLE[classDef.role]}
@@ -118,53 +135,66 @@ export default function HerosPage() {
                             className="h-8 w-8"
                           />
                         )}
-                        <h2 className="font-display font-semibold text-slate-50">{hero.name}</h2>
                       </div>
-                    </ViewTransition>
-                    <Badge tone={STATUS_TONE[hero.status]}>{STATUS_LABEL[hero.status]}</Badge>
-                  </div>
-                  <p
-                    className={`mt-1 text-sm font-medium ${classDef ? ROLE_TEXT_COLOR[classDef.role] : "text-slate-500"}`}
-                  >
-                    {classDef ? `${classDef.name} · ${ROLE_LABEL[classDef.role]}` : "Sans classe — à personnaliser"}
-                  </p>
-                  <p className="mt-1 text-sm text-amber-400">
-                    {"★".repeat(hero.starRank ?? 1)}
-                    {"☆".repeat(5 - (hero.starRank ?? 1))}
-                  </p>
-                  <p className="text-sm text-slate-400">Niveau {hero.level}</p>
-                  <div className="mt-2">
-                    <ProgressBar value={hero.xp} max={xpToNextLevel(hero.level)} />
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg border border-white/5 bg-black/20 py-2 text-center text-xs text-slate-400">
-                    <span>PV {stats.hp}</span>
-                    <span>ATQp {stats.atkPhys}</span>
-                    <span>ATQm {stats.atkMag}</span>
-                    <span>VIT {stats.spd}</span>
-                    <span>DEFp {stats.defPhys}</span>
-                    <span>DEFm {stats.defMag}</span>
-                  </div>
-                  {equippedItems.length > 0 ? (
-                    <ul className="mt-2 flex flex-wrap gap-1">
-                      {equippedItems.map((item) => (
-                        <li key={item.id} title={`${ITEM_SLOT_LABEL[item.slot]} · ${RARITY_LABEL[item.rarity]}`}>
-                          <Badge tone={item.rarity}>
-                            {item.name}
-                            {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""}
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-2 text-xs text-slate-600">Aucun équipement</p>
-                  )}
-                </Card>
+                      <div className="min-w-0">
+                        <h2 className="truncate font-semibold text-fg">{hero.name}</h2>
+                        <p
+                          className={`truncate text-xs font-medium ${classDef ? ROLE_TEXT_COLOR[classDef.role] : "text-fg-subtle"}`}
+                        >
+                          {classDef ? `${classDef.name} · ${ROLE_LABEL[classDef.role]}` : "Sans classe — à personnaliser"}
+                        </p>
+                      </div>
+                    </div>
+                  </ViewTransition>
+                  <Badge tone={STATUS_TONE[hero.status]} className="shrink-0">
+                    {STATUS_LABEL[hero.status]}
+                  </Badge>
+                </div>
+
+                <div className="mt-4 flex items-baseline justify-between gap-2 text-xs">
+                  <span className="text-fg-muted">
+                    Niveau <span className="font-semibold tabular-nums text-fg">{hero.level}</span>
+                  </span>
+                  <span className="tracking-wider">
+                    <span className="text-gold">{"★".repeat(star)}</span>
+                    <span className="text-fg-faint">{"☆".repeat(5 - star)}</span>
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <ProgressBar value={hero.xp} max={xpToNextLevel(hero.level)} size="sm" label="Expérience" />
+                </div>
+
+                <dl className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-line bg-line">
+                  {statCells.map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="bg-surface px-2 py-1.5 transition-colors duration-150 ease-out group-hover:bg-surface-2"
+                    >
+                      <dt className="text-[11px] text-fg-subtle">{label}</dt>
+                      <dd className="text-sm font-semibold tabular-nums text-fg">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                {equippedItems.length > 0 ? (
+                  <ul className="mt-3 flex flex-wrap gap-1">
+                    {equippedItems.map((item) => (
+                      <li key={item.id} title={`${ITEM_SLOT_LABEL[item.slot]} · ${RARITY_LABEL[item.rarity]}`}>
+                        <Badge tone={item.rarity}>
+                          {item.name}
+                          {item.enhanceLevel ? ` +${item.enhanceLevel}` : ""}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-xs text-fg-faint">Aucun équipement</p>
+                )}
               </Link>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
     </PageTransition>
   );
 }

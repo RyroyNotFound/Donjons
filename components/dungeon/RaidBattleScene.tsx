@@ -1,13 +1,14 @@
 "use client";
 
 import { ProgressBar } from "@/components/ProgressBar";
+import { Icon } from "@/components/Icon";
 import { ELEMENT_ICON, ELEMENT_LABEL } from "@/lib/game/engine/elements";
 import { RAID_EFFECT_NAME } from "@/lib/game/engine/dungeonCombat";
 import { explainBattle } from "@/lib/game/raidBattleInsights";
-import { ROLE_GLOW, ROLE_GRADIENT, ROLE_LABEL } from "@/lib/ui/role";
+import { ROLE_GRADIENT, ROLE_LABEL } from "@/lib/ui/role";
 import type { RaidBattleReport, RaidBattleUnitReport, RaidLogEntry } from "@/types/game";
 
-const INSIGHT_COLOR = { good: "text-emerald-300", bad: "text-red-300", neutral: "text-slate-300" } as const;
+const INSIGHT_COLOR = { good: "text-emerald-300", bad: "text-red-300", neutral: "text-fg-muted" } as const;
 
 function UnitCard({
   unit,
@@ -24,49 +25,59 @@ function UnitCard({
 }) {
   const dead = hp <= 0;
   const ring = acting
-    ? "ring-2 ring-amber-400"
+    ? "ring-2 ring-gold/60"
     : targeted
       ? healed
-        ? "ring-2 ring-emerald-400"
-        : "ring-2 ring-red-500"
-      : "ring-1 ring-white/5";
+        ? "ring-2 ring-emerald-400/70"
+        : "ring-2 ring-red-400/70"
+      : "ring-1 ring-line";
   const hero = unit.side === "hero";
   return (
-    <div className={`rounded-lg bg-black/30 p-2 transition-all duration-150 ${ring} ${dead ? "opacity-40" : ""}`}>
+    <div
+      className={`rounded-lg bg-white/[0.025] p-2 transition-[box-shadow,opacity] duration-150 ease-out ${ring} ${dead ? "opacity-40" : ""}`}
+    >
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className={`truncate font-semibold ${dead ? "text-slate-500 line-through" : hero ? "text-sky-200" : "text-red-200"}`}>
+        <span className={`truncate font-semibold ${dead ? "text-fg-subtle line-through" : hero ? "text-sky-200" : "text-red-200"}`}>
           {unit.name}
           {dead && " 💀"}
         </span>
-        <span className="shrink-0 tabular-nums text-slate-400">
-          {hp}/{unit.maxHp}
+        <span className="shrink-0 tabular-nums text-fg-muted">
+          {hp}
+          <span className="text-fg-faint">/{unit.maxHp}</span>
         </span>
       </div>
-      <div className="my-1">
+      <div className="my-1.5">
         <ProgressBar
           value={hp}
           max={unit.maxHp}
           colorClassName={unit.role ? ROLE_GRADIENT[unit.role] : "from-red-500 to-red-700"}
-          glowClassName={unit.role ? ROLE_GLOW[unit.role] : ""}
           label={`Points de vie de ${unit.name}`}
         />
       </div>
-      <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] tabular-nums text-fg-subtle">
         {unit.role && <span>{ROLE_LABEL[unit.role]}</span>}
-        <span title={`Attaque ${unit.atkType === "phys" ? "physique" : "magique"}`}>
-          ⚔️ {unit.atk} {unit.atkType === "phys" ? "phys." : "mag."}
+        <span
+          className="inline-flex items-center gap-0.5"
+          title={`Attaque ${unit.atkType === "phys" ? "physique" : "magique"}`}
+        >
+          <Icon name="sword" className="h-3 w-3" />
+          {unit.atk} {unit.atkType === "phys" ? "phys." : "mag."}
         </span>
-        <span title="Défense physique / magique : chaque coup reçu perd la moitié de la défense correspondante">
-          🛡️ {unit.defPhys}/{unit.defMag}
+        <span
+          className="inline-flex items-center gap-0.5"
+          title="Défense physique / magique : chaque coup reçu perd la moitié de la défense correspondante"
+        >
+          <Icon name="shield" className="h-3 w-3" />
+          {unit.defPhys}/{unit.defMag}
         </span>
         {unit.element && <span title={`Élément : ${ELEMENT_LABEL[unit.element]}`}>{ELEMENT_ICON[unit.element]}</span>}
         {unit.raidEffectTag && unit.raidEffectTag !== "disarm" && unit.raidEffectTag !== "scout" && (
-          <span className="text-violet-300">
+          <span className="text-purple-300">
             ✦ {RAID_EFFECT_NAME[unit.raidEffectTag]}
             {unit.raidEffectBonus && " ★"}
           </span>
         )}
-        {!!unit.weakened && <span className="text-amber-400">💫×{unit.weakened}</span>}
+        {!!unit.weakened && <span className="text-amber-300">💫×{unit.weakened}</span>}
       </div>
     </div>
   );
@@ -77,23 +88,23 @@ function ReportTable({ report }: { report: RaidBattleReport }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
-        <thead className="text-slate-500">
+        <thead className="text-fg-subtle">
           <tr>
-            <th className="py-1 text-left font-normal">Combattant</th>
-            <th className="py-1 text-right font-normal">Infligés</th>
-            <th className="py-1 text-right font-normal">Subis</th>
-            <th className="py-1 text-right font-normal">Soins</th>
-            <th className="py-1 text-right font-normal">PV fin</th>
+            <th className="py-1.5 text-left font-medium">Combattant</th>
+            <th className="py-1.5 text-right font-medium">Infligés</th>
+            <th className="py-1.5 text-right font-medium">Subis</th>
+            <th className="py-1.5 text-right font-medium">Soins</th>
+            <th className="py-1.5 text-right font-medium">PV fin</th>
           </tr>
         </thead>
         <tbody className="tabular-nums">
           {rows.map((u) => (
-            <tr key={u.id} className="border-t border-white/5">
-              <td className={`py-1 ${u.side === "hero" ? "text-sky-200" : "text-red-200"}`}>{u.name}</td>
-              <td className="py-1 text-right text-slate-200">{u.dealt}</td>
-              <td className="py-1 text-right text-slate-400">{u.taken}</td>
-              <td className="py-1 text-right text-emerald-300">{u.healed || "—"}</td>
-              <td className={`py-1 text-right ${u.hpEnd <= 0 ? "text-slate-600" : "text-slate-300"}`}>
+            <tr key={u.id} className="border-t border-line">
+              <td className={`py-1.5 ${u.side === "hero" ? "text-sky-200" : "text-red-200"}`}>{u.name}</td>
+              <td className="py-1.5 text-right text-fg">{u.dealt}</td>
+              <td className="py-1.5 text-right text-red-300/80">{u.taken}</td>
+              <td className="py-1.5 text-right text-emerald-300">{u.healed || "—"}</td>
+              <td className={`py-1.5 text-right ${u.hpEnd <= 0 ? "text-fg-faint" : "text-fg-muted"}`}>
                 {u.hpEnd <= 0 ? "K.O." : `${u.hpEnd}/${u.maxHp}`}
               </td>
             </tr>
@@ -138,8 +149,8 @@ export function RaidBattleScene({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold uppercase tracking-wide text-slate-400">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium uppercase tabular-nums tracking-[0.14em] text-fg-subtle">
           {done ? `Combat terminé — ${report.rounds} tour${report.rounds > 1 ? "s" : ""}` : round > 0 ? `Tour ${round}` : "Engagement"}
         </span>
         {!done && last?.side && (
@@ -158,10 +169,18 @@ export function RaidBattleScene({
           {enemies.map(card)}
         </div>
       </div>
-      {!done && last && <p className="min-h-[2.5rem] rounded bg-black/20 px-2 py-1 text-sm text-slate-200">{last.message}</p>}
+      {!done && last && (
+        <p className="min-h-[2.5rem] rounded-lg border border-line bg-black/25 px-3 py-2 text-sm tabular-nums text-fg">
+          {last.message}
+        </p>
+      )}
       {done && (
-        <div className={`space-y-3 rounded-lg border p-3 ${report.outcome === "cleared" ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
-          <p className={`font-display font-bold ${report.outcome === "cleared" ? "text-emerald-300" : "text-red-300"}`}>
+        <div
+          className={`space-y-3 rounded-lg border p-3 ${
+            report.outcome === "cleared" ? "border-emerald-400/25 bg-emerald-400/[0.05]" : "border-red-400/25 bg-red-400/[0.05]"
+          }`}
+        >
+          <p className={`font-semibold ${report.outcome === "cleared" ? "text-emerald-300" : "text-red-300"}`}>
             {report.outcome === "cleared" ? "Victoire" : "Défaite"} — pourquoi ?
           </p>
           <ul className="space-y-1 text-sm">

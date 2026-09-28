@@ -8,7 +8,10 @@ import { callApi } from "@/lib/api/client";
 import { getZone } from "@/lib/game/content/zones";
 import { getDifficulty, zoneAtDifficulty } from "@/lib/game/content/difficulties";
 import { equippedItemsOf, resolveHeroStats } from "@/lib/game/engine/stats";
-import { RARITY_LABEL } from "@/lib/ui/rarity";
+import { RARITY_ICON, RARITY_LABEL, RARITY_TEXT } from "@/lib/ui/rarity";
+import { focusRing } from "@/lib/ui/a11y";
+import { Icon } from "@/components/Icon";
+import { NavIcon } from "@/components/NavIcon";
 import { ArenaGame } from "@/components/expedition/ArenaGame";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
@@ -26,11 +29,28 @@ function Stars({ count }: { count: number }) {
   return (
     <span className="text-2xl tracking-widest" aria-label={`${count} étoile(s) sur 3`}>
       {[1, 2, 3].map((i) => (
-        <span key={i} className={i <= count ? "text-amber-300" : "text-slate-700"}>
+        <span key={i} className={i <= count ? "text-gold" : "text-fg-faint"}>
           ★
         </span>
       ))}
     </span>
+  );
+}
+
+/** The play route hides the mobile tab bar, so the page carries its own way out. */
+function BackLink() {
+  return (
+    <Link
+      href="/expeditions"
+      transitionTypes={["nav-back"]}
+      className={`group -ml-2 inline-flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-fg-muted transition-colors duration-150 hover:text-fg ${focusRing}`}
+    >
+      <NavIcon
+        name="chevron-right"
+        className="h-4 w-4 rotate-180 transition-transform duration-150 ease-out group-hover:-translate-x-0.5"
+      />
+      Expéditions
+    </Link>
   );
 }
 
@@ -72,6 +92,7 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
   if (!expedition || !party) {
     return (
       <PageTransition>
+        <BackLink />
         <Spinner label="Chargement de l'expédition..." />
       </PageTransition>
     );
@@ -132,10 +153,13 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
   return (
     <PageTransition>
       <div className="space-y-6">
-        <PageHeader
-          title={difficulty.id === "normal" ? zone.name : `${zone.name} ${difficulty.icon} ${difficulty.name}`}
-          subtitle={`Boss : ${zone.boss.name} · ${zone.durationSec}s max`}
-        />
+        <div className="space-y-3">
+          <BackLink />
+          <PageHeader
+            title={difficulty.id === "normal" ? zone.name : `${zone.name} ${difficulty.icon} ${difficulty.name}`}
+            subtitle={`Boss : ${zone.boss.name} · ${zone.durationSec}s max`}
+          />
+        </div>
 
         {phase === "playing" && (
           <ArenaGame
@@ -150,11 +174,13 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
         {phase === "submitting" && <Spinner label="Calcul du butin..." />}
 
         {phase === "result" && (
-          <Card accent={outcome?.survived ? "success" : "gold"}>
+          <Card accent={outcome?.survived ? "success" : "gold"} className="animate-pop">
             {outcome && (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className={`font-display text-xl font-bold ${outcome.survived ? "text-emerald-400" : "text-amber-400"}`}>
+                  <h2
+                    className={`font-display text-xl font-semibold sm:text-2xl ${outcome.survived ? "text-emerald-300" : "text-gold"}`}
+                  >
                     {outcome.bossKilled
                       ? `${zone.boss.name} est vaincu !`
                       : outcome.survived
@@ -163,61 +189,97 @@ function ExpeditionRun({ expeditionId }: { expeditionId: string }) {
                   </h2>
                   <Stars count={outcome.stars} />
                 </div>
-                {outcome.newBestStars && outcome.stars > 0 && (
-                  <p className="text-sm text-amber-300">Nouveau record sur cette zone !</p>
-                )}
-                {outcome.unlockedZoneName && (
-                  <p className="text-sm text-emerald-300">🔓 Nouvelle zone débloquée : {outcome.unlockedZoneName}</p>
-                )}
-                {outcome.unlockedDifficultyName && (
-                  <p className="text-sm text-emerald-300">🔓 Difficulté débloquée sur cette zone : {outcome.unlockedDifficultyName}</p>
-                )}
-                {outcome.dailyBonus && (
-                  <p className="text-sm text-sky-300">☀️ Première victoire du jour dans cette zone : bonus de cristaux et jeton de rang !</p>
-                )}
+                {(outcome.newBestStars && outcome.stars > 0) ||
+                outcome.unlockedZoneName ||
+                outcome.unlockedDifficultyName ||
+                outcome.dailyBonus ? (
+                  <ul className="space-y-1.5 text-sm">
+                    {outcome.newBestStars && outcome.stars > 0 && (
+                      <li className="rounded-lg border border-gold/25 bg-gold/[0.06] px-3 py-2 text-gold">
+                        Nouveau record sur cette zone !
+                      </li>
+                    )}
+                    {outcome.unlockedZoneName && (
+                      <li className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-emerald-300">
+                        Nouvelle zone débloquée : <span className="font-semibold">{outcome.unlockedZoneName}</span>
+                      </li>
+                    )}
+                    {outcome.unlockedDifficultyName && (
+                      <li className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-emerald-300">
+                        Difficulté débloquée sur cette zone : <span className="font-semibold">{outcome.unlockedDifficultyName}</span>
+                      </li>
+                    )}
+                    {outcome.dailyBonus && (
+                      <li className="rounded-lg border border-sky-400/25 bg-sky-400/10 px-3 py-2 text-sky-300">
+                        Première victoire du jour dans cette zone : bonus de cristaux et jeton de rang !
+                      </li>
+                    )}
+                  </ul>
+                ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-slate-300">
-                    <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">Butin</p>
-                    <ul className="space-y-0.5">
-                      <li>🪙 {outcome.loot.gold} or</li>
+                  <div className="rounded-lg border border-line bg-white/[0.025] p-3 text-sm">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">Butin</p>
+                    <ul className="space-y-1.5 tabular-nums text-fg">
+                      <li className="flex items-center gap-2">
+                        <Icon name="gold" className="h-4 w-4" />
+                        <span className="text-amber-300">{outcome.loot.gold}</span> or
+                      </li>
                       {Object.entries(outcome.loot.resources).map(([kind, amount]) => (
-                        <li key={kind}>
-                          📦 {amount} {RESOURCE_LABEL[kind as ResourceKind]}
+                        <li key={kind} className="flex items-center gap-2">
+                          <Icon name={kind as ResourceKind} className="h-4 w-4" />
+                          {amount} {RESOURCE_LABEL[kind as ResourceKind]}
                         </li>
                       ))}
                       {[outcome.loot.item, outcome.loot.extraItem].map(
                         (dropped, i) =>
                           dropped && (
-                            <li key={i}>
-                              🎁 {dropped.name} ({RARITY_LABEL[dropped.rarity]})
+                            <li key={i} className="flex items-center gap-2">
+                              <Icon name={RARITY_ICON[dropped.rarity]} className="h-4 w-4" />
+                              <span className={`font-medium ${RARITY_TEXT[dropped.rarity]}`}>{dropped.name}</span>
+                              <span className="text-xs text-fg-subtle">({RARITY_LABEL[dropped.rarity]})</span>
                             </li>
                           ),
                       )}
-                      {outcome.loot.monsterCaptured && <li>🕸️ Monstre capturé !</li>}
-                      {outcome.crystalsEarned > 0 && <li>💎 {outcome.crystalsEarned} cristaux</li>}
-                      {outcome.rankTokensEarned > 0 && <li>🎖️ {outcome.rankTokensEarned} jeton(s) de rang</li>}
+                      {outcome.loot.monsterCaptured && <li className="text-purple-300">🕸️ Monstre capturé !</li>}
+                      {outcome.crystalsEarned > 0 && (
+                        <li className="flex items-center gap-2">
+                          <Icon name="crystal" className="h-4 w-4" />
+                          {outcome.crystalsEarned} cristaux
+                        </li>
+                      )}
+                      {outcome.rankTokensEarned > 0 && (
+                        <li className="flex items-center gap-2">
+                          <Icon name="rank-token" className="h-4 w-4" />
+                          {outcome.rankTokensEarned} jeton(s) de rang
+                        </li>
+                      )}
                     </ul>
                   </div>
-                  <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-slate-300">
-                    <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">Équipe</p>
-                    <p>☠️ {outcome.killCount} monstres vaincus</p>
-                    <p>✨ +{outcome.xpGained} XP par héros</p>
-                    {outcome.levelUps.map((l) => (
-                      <p key={l.heroId} className="text-emerald-300">
-                        ⬆️ {l.name} : Nv. {l.from} → {l.to}
+                  <div className="rounded-lg border border-line bg-white/[0.025] p-3 text-sm">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">Équipe</p>
+                    <div className="space-y-1.5 tabular-nums text-fg">
+                      <p>☠️ {outcome.killCount} monstres vaincus</p>
+                      <p>
+                        <span className="text-sky-300">+{outcome.xpGained} XP</span> par héros
                       </p>
-                    ))}
+                      {outcome.levelUps.map((l) => (
+                        <p key={l.heroId} className="text-emerald-300">
+                          {l.name} : Nv. {l.from} → <span className="font-semibold">{l.to}</span>
+                        </p>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 {outcome.stars < 3 && (
-                  <p className="text-xs text-slate-500">
-                    ★ survivre · ★★ vaincre le boss · ★★★ vaincre le boss sans aucun héros KO
+                  <p className="text-xs text-fg-subtle">
+                    <span className="text-gold">★</span> survivre · <span className="text-gold">★★</span> vaincre le boss ·{" "}
+                    <span className="text-gold">★★★</span> vaincre le boss sans aucun héros KO
                   </p>
                 )}
               </div>
             )}
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-red-300">{error}</p>}
             <div className="mt-5 flex flex-wrap gap-3">
               {outcome ? (
                 <Button onClick={replay} disabled={replaying}>

@@ -113,6 +113,16 @@ Une fois `.env.local` rempli, relance `npm run dev` : l'inscription (`/inscripti
 - Le classement (`lib/game/leaderboard.ts`, `GET /api/leaderboard`) est recalculé côté serveur à partir des profils, héros et objets équipés de tous les joueurs, avec un cache mémoire d'une minute — rien n'est dénormalisé, sauf les compteurs de raid (`UserProfile.raidStats`), incrémentés dans `commitRaidStep` (`lib/game/dungeonRaidLifecycle.ts`). Ce calcul « tout lire » convient à quelques dizaines de joueurs ; au-delà, il faudra stocker les scores.
 - Le Velours Noir (`lib/velours/content.ts` pour les hôtesses, répliques, cadeaux et scènes, `lib/velours/engine.ts` pour les règles, `components/velours/VeloursGame.tsx` pour l'interface) est volontairement isolé : 100 % client, aucune route API, aucune donnée Firestore, sauvegarde `localStorage` (`velours-noir-save-v1`). Les sprites (`public/velours/<id>/*.png`) sont générés par `scripts/velours-sprites/build.mjs` à partir de `assets/Anime Mature Woman Free.psd` (coiffure, tenue, teinte et expressions par fille dans la table `H`).
 
+## Design de l'interface
+
+Direction « dark fantasy sobre » : surfaces obsidienne chaudes, un seul accent or, couleurs de rareté réservées au sens de jeu.
+
+- Tokens dans `app/globals.css` (`@theme static`) et exposés en utilitaires Tailwind : surfaces `bg-canvas` < `bg-surface` < `bg-surface-2` < `bg-surface-3`, lignes `border-line` / `border-line-strong`, texte `text-fg` / `text-fg-muted` / `text-fg-subtle` / `text-fg-faint`, accent `text-gold` / `bg-gold`. Les courbes `ease-out` / `ease-in-out` de Tailwind sont remplacées par des courbes fortes, et `ease-drawer` sert aux panneaux.
+- Composants partagés dans `components/` : `Card` (accent = bordure teintée + liseré lumineux en haut), `Button`/`buttonClasses`, `Badge`, `Chip`, `Panel`, `PageHeader` (le surtitre vient de la section de nav), `ProgressBar`, `Field`, `NavIcon` (icônes au trait pour l'interface ; les icônes pixel `Icon` restent pour le contenu du jeu), `BrandMark`.
+- Navigation définie une seule fois dans `lib/ui/nav.ts` : barre latérale sur ordinateur ; sur mobile, barre d'onglets en bas (Camp, Héros, Donjon, Aventure, Menu) et feuille de menu qu'on ferme en la glissant vers le bas. Les routes « immersives » (`/expeditions/jouer/*`) masquent la barre d'onglets.
+- Animation : transitions sur des propriétés précises (jamais `transition-all`), 150–250 ms, pression `scale(0.97)`, pas de soulèvement au survol. Les animations festives (invocation, victoire de raid, braises) sont réservées aux moments rares. `prefers-reduced-motion` garde les fondus et retire les mouvements.
+- Base mobile : `viewport-fit=cover` + zones sûres (`env(safe-area-inset-*)`), champs en 16 px sur écran tactile (pas de zoom iOS), pas de flash au toucher, `overscroll-behavior: none`. Les toasts fixes utilisent `bottom-toast` pour passer au-dessus de la barre d'onglets.
+
 ## Roadmap (pas encore construit)
 
 - Plus de zones, salles, pièges, monstres, recettes et métiers.

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Button } from "@/components/Button";
+import { Badge } from "@/components/Badge";
+import { focusRing } from "@/lib/ui/a11y";
 import { HERO_SPRITE_BY_ROLE, CLASS_TINT } from "@/lib/ui/heroSprites";
 import { MONSTER_SPRITE } from "@/lib/ui/monsterSprites";
 import {
@@ -414,32 +416,44 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-300">
-        <span className="font-semibold text-slate-100">⏳ {Math.ceil(remaining)}s</span>
-        <span className="text-amber-300">☠️ {hud.killCount}</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]">
+        <span
+          className={`flex items-center gap-1.5 font-semibold tabular-nums transition-colors duration-200 ${
+            started && remaining <= 10 ? "text-red-300" : "text-fg"
+          }`}
+        >
+          <svg viewBox="0 0 16 16" className="h-4 w-4 text-fg-subtle" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+            <circle cx="8" cy="8.5" r="5.5" />
+            <path d="M8 5.5v3l2 1.5M6.5 1.5h3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {Math.ceil(remaining)}s
+        </span>
+        <span className="tabular-nums text-fg-muted">
+          ☠️ <span className="font-semibold text-fg">{hud.killCount}</span>
+        </span>
         <div className="flex min-w-40 flex-1 items-center gap-2">
-          <span className="text-cyan-300">Nv. {hud.level}</span>
+          <span className="shrink-0 text-xs font-semibold tabular-nums text-sky-300">Nv. {hud.level}</span>
           <div className="flex-1">
-            <ProgressBar value={hud.xp} max={hud.xpNext} colorClassName="from-cyan-400 to-cyan-600" label="Expérience" />
+            <ProgressBar value={hud.xp} max={hud.xpNext} size="sm" colorClassName="from-sky-500 to-sky-300" label="Expérience" />
           </div>
         </div>
-        {hud.hasteActive && <span className="text-cyan-300">🍃 Frénésie</span>}
-        {hud.dmgActive && <span className="text-amber-300">🛡️ Bénédiction</span>}
-        {!hud.boss && bossIn > 0 && <span className="text-xs text-slate-500">Boss dans {Math.ceil(bossIn)}s</span>}
-        <Button size="sm" variant="ghost" onClick={flee} disabled={!started}>
+        {hud.hasteActive && <Badge tone="info">Frénésie</Badge>}
+        {hud.dmgActive && <Badge tone="gold">Bénédiction</Badge>}
+        {!hud.boss && bossIn > 0 && <span className="text-xs tabular-nums text-fg-subtle">Boss dans {Math.ceil(bossIn)}s</span>}
+        <Button size="sm" variant="ghost" onClick={flee} disabled={!started} className="ml-auto">
           Fuir
         </Button>
       </div>
 
       {hud.boss && (
-        <div className="rounded-lg border border-red-500/40 bg-red-950/30 px-3 py-2">
-          <div className="mb-1 flex justify-between text-xs text-red-300">
-            <span className="font-semibold">{hud.boss.name}</span>
-            <span>
+        <div className="animate-fade rounded-xl border border-red-400/25 bg-red-400/[0.06] px-3 py-2">
+          <div className="mb-1.5 flex justify-between gap-3 text-xs">
+            <span className="font-semibold text-red-300">{hud.boss.name}</span>
+            <span className="tabular-nums text-red-300/80">
               {hud.boss.hp}/{hud.boss.maxHp}
             </span>
           </div>
-          <ProgressBar value={hud.boss.hp} max={hud.boss.maxHp} colorClassName="from-red-500 to-red-700" label="PV du boss" />
+          <ProgressBar value={hud.boss.hp} max={hud.boss.maxHp} colorClassName="from-red-600 to-red-400" label="PV du boss" />
         </div>
       )}
 
@@ -448,7 +462,7 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
           ref={canvasRef}
           width={ARENA_WIDTH}
           height={ARENA_HEIGHT}
-          className="w-full max-w-full touch-none rounded-xl border border-amber-500/20 shadow-lg shadow-black/50"
+          className="w-full max-w-full touch-none rounded-xl border border-line-strong shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
           onPointerDown={(e) => {
             if (!started) {
               setStarted(true);
@@ -468,15 +482,15 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
           <button
             type="button"
             onClick={() => setStarted(true)}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-black/60 text-center"
+            className={`absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-black/70 px-4 text-center backdrop-blur-sm ${focusRing}`}
           >
-            <span className="font-display text-2xl font-bold text-amber-300">Prêt ?</span>
-            <span className="text-sm text-slate-300">Clique ou appuie sur une touche pour lancer l&apos;expédition</span>
-            <span className="text-xs text-slate-500">
+            <span className="font-display text-2xl font-semibold text-gold sm:text-3xl">Prêt ?</span>
+            <span className="text-sm text-fg">Clique ou appuie sur une touche pour lancer l&apos;expédition</span>
+            <span className="max-w-md text-xs leading-relaxed text-fg-subtle">
               ZQSD / WASD / flèches, ou maintiens le clic (ou le doigt) pour guider ton chef d&apos;équipe.
             </span>
             {zone.hazard && (
-              <span className="text-xs text-orange-300">
+              <span className="mt-1 max-w-md rounded-md border border-orange-400/25 bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
                 {zone.hazard.name} : sors des cercles rouges avant l&apos;impact ({Math.round(zone.hazard.damagePct * 100)}% des PV max).
               </span>
             )}
@@ -484,9 +498,11 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
         )}
 
         {hud.choices && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-black/70 p-4">
-            <p className="font-display text-xl font-bold text-cyan-300">Niveau {hud.level} ! Choisis une amélioration</p>
-            <div className="grid w-full max-w-2xl gap-3 sm:grid-cols-3">
+          <div className="animate-fade absolute inset-0 flex flex-col items-center justify-center-safe gap-3 overflow-y-auto rounded-xl bg-black/70 p-3 backdrop-blur-sm sm:p-4">
+            <p className="text-center text-base font-semibold text-fg sm:text-lg">
+              <span className="tabular-nums text-sky-300">Niveau {hud.level} !</span> Choisis une amélioration
+            </p>
+            <div className="grid w-full max-w-2xl gap-2 sm:grid-cols-3 sm:gap-3">
               {hud.choices.map((cardId, i) => {
                 const card = getCard(cardId);
                 if (!card) return null;
@@ -495,12 +511,17 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
                     key={cardId}
                     type="button"
                     onClick={() => pick(cardId)}
-                    className="rounded-lg border border-cyan-500/40 bg-slate-900/90 p-3 text-left transition hover:border-cyan-300 hover:bg-slate-800"
+                    style={{ animationDelay: `${i * 40}ms` }}
+                    className={`animate-pop group flex items-start gap-3 rounded-xl border border-line-strong bg-surface p-3 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04),0_12px_24px_-12px_rgb(0_0_0/0.6)] transition-[transform,border-color,background-color] duration-150 ease-out hover:border-gold/50 hover:bg-surface-2 active:scale-[0.97] sm:flex-col sm:gap-0 ${focusRing}`}
                   >
-                    <p className="text-2xl">{card.icon}</p>
-                    <p className="mt-1 font-semibold text-slate-100">{card.name}</p>
-                    <p className="text-xs text-slate-400">{card.description}</p>
-                    <p className="mt-2 text-[10px] uppercase tracking-wide text-slate-500">Touche {i + 1}</p>
+                    <p className="text-2xl leading-none">{card.icon}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-fg sm:mt-2">{card.name}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{card.description}</p>
+                      <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-fg-faint transition-colors duration-150 group-hover:text-gold">
+                        Touche {i + 1}
+                      </p>
+                    </div>
                   </button>
                 );
               })}
@@ -513,19 +534,31 @@ export function ArenaGame({ zone, party, componentRanks, seed, onFinish }: Arena
         {hud.heroes.map((hero) => (
           <div
             key={hero.id}
-            className={`rounded-lg border px-3 py-2 text-xs ${
-              hero.alive ? (hero.leader ? "border-amber-500/50 bg-amber-500/5" : "border-white/10 bg-black/20") : "border-red-900/50 bg-red-950/20 opacity-60"
+            className={`rounded-lg border px-3 py-2 text-xs transition-[opacity,border-color,background-color] duration-200 ease-out ${
+              hero.alive
+                ? hero.leader
+                  ? "border-gold/30 bg-gold/[0.05]"
+                  : "border-line bg-surface"
+                : "border-red-400/20 bg-red-400/[0.04] opacity-60"
             }`}
           >
-            <div className="mb-1 flex justify-between text-slate-300">
-              <span className="font-semibold">
+            <div className="mb-1.5 flex justify-between gap-2">
+              <span className="min-w-0 truncate font-semibold text-fg">
                 {hero.leader && "👑 "}
                 {hero.name}
               </span>
-              <span>{hero.alive ? `${hero.hp}/${hero.maxHp}` : "KO"}</span>
+              <span className={`shrink-0 tabular-nums ${hero.alive ? "text-fg-muted" : "font-semibold text-red-300"}`}>
+                {hero.alive ? `${hero.hp}/${hero.maxHp}` : "KO"}
+              </span>
             </div>
-            <ProgressBar value={hero.hp} max={hero.maxHp} colorClassName="from-emerald-400 to-emerald-600" label={`PV de ${hero.name}`} />
-            {hero.spells.length > 0 && <p className="mt-1 tracking-widest">{hero.spells.join(" ")}</p>}
+            <ProgressBar
+              value={hero.hp}
+              max={hero.maxHp}
+              size="sm"
+              colorClassName="from-emerald-500 to-emerald-300"
+              label={`PV de ${hero.name}`}
+            />
+            {hero.spells.length > 0 && <p className="mt-1.5 tracking-widest">{hero.spells.join(" ")}</p>}
           </div>
         ))}
       </div>

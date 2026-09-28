@@ -39,42 +39,53 @@ export default function InscriptionPage() {
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <h1 className="font-display text-2xl font-bold text-slate-50">Créer un compte</h1>
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div>
-          <Label>Email</Label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={inputClass}
-          />
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold text-fg">Créer un compte</h1>
+          <p className="text-sm text-fg-subtle">Quelques secondes et votre donjon vous attend.</p>
         </div>
-        <div>
-          <Label>Mot de passe</Label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
-          />
-        </div>
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <Button type="submit" disabled={submitting} className="w-full">
-          {submitting ? "Création..." : "Créer mon compte"}
-        </Button>
-      </form>
-      <p className="text-sm text-slate-400">
-        Déjà un compte ?{" "}
-        <Link href="/connexion" className="text-amber-400 hover:underline">
-          Se connecter
-        </Link>
-      </p>
-    </div>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div>
+            <Label>Email</Label>
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <Label>Mot de passe</Label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          {error && (
+            <p role="alert" className="rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2 text-sm text-red-300">
+              {error}
+            </p>
+          )}
+          <Button type="submit" size="lg" disabled={submitting} className="w-full">
+            {submitting ? "Création..." : "Créer mon compte"}
+          </Button>
+        </form>
+        <p className="text-center text-sm text-fg-subtle">
+          Déjà un compte ?{" "}
+          <Link href="/connexion" className="font-medium text-gold transition-colors duration-150 hover:text-gold-bright">
+            Se connecter
+          </Link>
+        </p>
+      </div>
     </PageTransition>
   );
 }
